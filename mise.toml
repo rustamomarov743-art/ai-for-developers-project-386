@@ -1,0 +1,14 @@
+[tools]
+java = "25.0.5+8.0.LTS" # backend/pom.xml: <java.version>25</java.version>
+node = "24.22.2"        # LTS, соответствует @types/node ^24 в frontend
+maven = "3.10.0"        # совпадает с версией в backend/.mvn/wrapper
+
+[env]
+# mise автоматически выставляет JAVA_HOME и PATH для инструментов из [tools].
+# Переменные проекта добавляйте ниже, либо в корневой .env (mise подхватит его,
+# если раскомментировать строку):
+# _.file = ".env"
+
+[tasks]
+# Запуск приложения: mvn и java подставятся из [tools] автоматически
+backend = { description = "Запуск Spring Boot (порт 8080)", run = "mvn -f backend/pom.xml spring-boot:run" }
