@@ -121,3 +121,4 @@ target/
 .env
 
 .my/log
+.my
