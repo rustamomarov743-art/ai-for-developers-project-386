@@ -5,6 +5,7 @@
 
 ## Структура
 
+- `api/` — TypeSpec-контракт и сгенерированная OpenAPI-схема.
 - `backend/` — Spring Boot, REST API и backend-тесты.
 - `frontend/` — React, TypeScript и Vite.
 - `mise.toml` — версии инструментов и команды проекта.
@@ -16,6 +17,7 @@
 
 Запускать из корня репозитория:
 
+- `mise run api-generate` — генерация OpenAPI и клиентского SDK.
 - `mise run backend` — запуск backend на порту 8080.
 - `mise run frontend` — установка зависимостей и запуск frontend.
 - `mise run check` — все проверки; обязательна перед завершением изменений.

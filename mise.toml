@@ -10,6 +10,8 @@ maven = "3.10.0"        # Maven для backend
 # _.file = ".env"
 
 [tasks]
+api-install = { description = "Установка зависимостей генераторов API", run = "npm --prefix api ci" }
+api-generate = { description = "Генерация OpenAPI и клиентского SDK", depends = ["api-install"], run = "npm --prefix api run generate" }
 backend = { description = "Запуск Spring Boot (порт 8080)", run = "mvn -f backend/pom.xml spring-boot:run" }
 backend-check = { description = "Проверки и тесты backend", run = "mvn -f backend/pom.xml verify" }
 backend-format = { description = "Форматирование Java через Spotless", run = "mvn -f backend/pom.xml spotless:apply" }
@@ -17,4 +19,4 @@ frontend-install = { description = "Установка зависимостей 
 frontend = { description = "Запуск Vite", depends = ["frontend-install"], run = "npm --prefix frontend run dev" }
 frontend-check = { description = "Линтер, типы и сборка frontend", depends = ["frontend-install"], run = ["npm --prefix frontend run lint", "npm --prefix frontend run build"] }
 check = { description = "Все проверки проекта", depends = ["backend-check", "frontend-check"] }
-clean = { description = "Очистка артефактов сборки и зависимостей frontend", run = ["mvn -f pom.xml clean", "rm -rf frontend/dist frontend/node_modules"] }
+clean = { description = "Очистка артефактов сборки и зависимостей Node.js", run = ["mvn -f pom.xml clean", "rm -rf api/node_modules frontend/dist frontend/node_modules"] }

@@ -115,6 +115,9 @@ gen
 # Сборка Maven
 target/
 
+# Зависимости Node.js
+node_modules/
+
 # Артефакты копирования из Windows (NTFS alternate data streams)
 *:Zone.Identifier
 
