@@ -17,3 +17,4 @@ frontend-install = { description = "Установка зависимостей 
 frontend = { description = "Запуск Vite", depends = ["frontend-install"], run = "npm --prefix frontend run dev" }
 frontend-check = { description = "Линтер, типы и сборка frontend", depends = ["frontend-install"], run = ["npm --prefix frontend run lint", "npm --prefix frontend run build"] }
 check = { description = "Все проверки проекта", depends = ["backend-check", "frontend-check"] }
+clean = { description = "Очистка артефактов сборки и зависимостей frontend", run = ["mvn -f pom.xml clean", "rm -rf frontend/dist frontend/node_modules"] }
