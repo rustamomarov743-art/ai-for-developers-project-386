@@ -12,6 +12,11 @@
 
 - java 25
 - Spring Boot 4.2.x
+- React, TypeScript и Vite
+- API-контракт на следующих шагах: TypeSpec → OpenAPI
+- Клиентский SDK на следующих шагах: `@hey-api/openapi-ts` с `@hey-api/client-fetch` и `@hey-api/sdk`; плоские функции, результат генерации — `frontend/src/api/generated/`
+
+Версия генератора клиента будет зафиксирована точно, без диапазона. Сгенерированные файлы не редактируются вручную.
 
 ## Установка
 

@@ -1,7 +1,7 @@
 [tools]
 java = "25.0.5+8.0.LTS" # backend/pom.xml: <java.version>25</java.version>
 node = "24.22.2"        # LTS, соответствует @types/node ^24 в frontend
-maven = "3.10.0"        # совпадает с версией в backend/.mvn/wrapper
+maven = "3.10.0"        # Maven для backend
 
 [env]
 # mise автоматически выставляет JAVA_HOME и PATH для инструментов из [tools].
@@ -10,5 +10,10 @@ maven = "3.10.0"        # совпадает с версией в backend/.mvn/w
 # _.file = ".env"
 
 [tasks]
-# Запуск приложения: mvn и java подставятся из [tools] автоматически
 backend = { description = "Запуск Spring Boot (порт 8080)", run = "mvn -f backend/pom.xml spring-boot:run" }
+backend-check = { description = "Проверки и тесты backend", run = "mvn -f backend/pom.xml verify" }
+backend-format = { description = "Форматирование Java через Spotless", run = "mvn -f backend/pom.xml spotless:apply" }
+frontend-install = { description = "Установка зависимостей frontend", run = "npm --prefix frontend ci" }
+frontend = { description = "Запуск Vite", depends = ["frontend-install"], run = "npm --prefix frontend run dev" }
+frontend-check = { description = "Линтер, типы и сборка frontend", depends = ["frontend-install"], run = ["npm --prefix frontend run lint", "npm --prefix frontend run build"] }
+check = { description = "Все проверки проекта", depends = ["backend-check", "frontend-check"] }
