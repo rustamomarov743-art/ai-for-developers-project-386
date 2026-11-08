@@ -17,6 +17,6 @@ backend-check = { description = "Проверки и тесты backend", run = 
 backend-format = { description = "Форматирование Java через Spotless", run = "mvn -f backend/pom.xml spotless:apply" }
 frontend-install = { description = "Установка зависимостей frontend", run = "npm --prefix frontend ci" }
 frontend = { description = "Запуск Vite", depends = ["frontend-install"], run = "npm --prefix frontend run dev" }
-frontend-check = { description = "Линтер, типы и сборка frontend", depends = ["frontend-install"], run = ["npm --prefix frontend run lint", "npm --prefix frontend run build"] }
+frontend-check = { description = "Линтер, тесты, типы и сборка frontend", depends = ["frontend-install"], run = ["npm --prefix frontend run lint", "npm --prefix frontend test", "npm --prefix frontend run build"] }
 check = { description = "Все проверки проекта", depends = ["backend-check", "frontend-check"] }
 clean = { description = "Очистка артефактов сборки и зависимостей Node.js", run = ["mvn -f pom.xml clean", "rm -rf api/node_modules frontend/dist frontend/node_modules"] }
