@@ -34,3 +34,17 @@ CI запускает `mise run check`. После изменений API доп
 - Не редактируйте вручную `frontend/src/api/generated/`:
   меняйте контракт и повторно запускайте генерацию.
 - Не изменяйте `.github/workflows/hexlet-check.yml`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs are tracked in GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the five default triage labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Use the single-context layout. See `docs/agents/domain.md`.
