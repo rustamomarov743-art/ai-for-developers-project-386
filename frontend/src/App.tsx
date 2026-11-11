@@ -1,5 +1,6 @@
 import { Link, Route, Routes } from 'react-router-dom'
 import './App.css'
+import PrototypePages from './prototype/PrototypePages'
 
 function HomePage() {
   return (
@@ -43,6 +44,7 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
+      <Route path="/prototype/pages" element={<PrototypePages />} />
       <Route
         path="/owner"
         element={<PlaceholderPage title="Страница владельца" />}
