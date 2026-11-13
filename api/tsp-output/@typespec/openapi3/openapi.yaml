@@ -15,6 +15,57 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+  /api/owner/availability:
+    get:
+      operationId: getAvailability
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Availability'
+        '500':
+          description: Server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+    put:
+      operationId: replaceAvailability
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Availability'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: Server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplaceAvailabilityRequest'
   /api/owner/meeting-types:
     get:
       operationId: listMeetingTypes
@@ -80,6 +131,20 @@ components:
           type: string
         message:
           type: string
+    Availability:
+      type: object
+      required:
+        - exists
+      properties:
+        exists:
+          type: boolean
+        timeZone:
+          type: string
+        version:
+          type: integer
+          format: int32
+        weeklyTemplate:
+          $ref: '#/components/schemas/WeeklyTemplate'
     CreateMeetingTypeRequest:
       type: object
       required:
@@ -155,6 +220,72 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ApiFieldError'
+    ReplaceAvailabilityRequest:
+      type: object
+      required:
+        - timeZone
+        - expectedVersion
+        - weeklyTemplate
+      properties:
+        timeZone:
+          type: string
+        expectedVersion:
+          type: integer
+          format: int32
+          nullable: true
+        weeklyTemplate:
+          $ref: '#/components/schemas/WeeklyTemplate'
+    TimeInterval:
+      type: object
+      required:
+        - start
+        - end
+      properties:
+        start:
+          type: string
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+        end:
+          type: string
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+    WeeklyTemplate:
+      type: object
+      required:
+        - MONDAY
+        - TUESDAY
+        - WEDNESDAY
+        - THURSDAY
+        - FRIDAY
+        - SATURDAY
+        - SUNDAY
+      properties:
+        MONDAY:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+        TUESDAY:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+        WEDNESDAY:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+        THURSDAY:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+        FRIDAY:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+        SATURDAY:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+        SUNDAY:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
 servers:
   - url: http://localhost:8080
     description: Local development

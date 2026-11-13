@@ -38,6 +38,16 @@ class ApiExceptionHandler {
         java.util.List.of(new ApiFieldError("name", "Название должно быть уникальным")));
   }
 
+  @ExceptionHandler(AvailabilityVersionConflictException.class)
+  ResponseEntity<ProblemDetails> handleAvailabilityVersionConflict(HttpServletRequest request) {
+    return problem(
+        HttpStatus.CONFLICT,
+        "AVAILABILITY_VERSION_CONFLICT",
+        "Расписание изменилось в другой вкладке",
+        request,
+        null);
+  }
+
   @ExceptionHandler(Exception.class)
   ResponseEntity<ProblemDetails> handleUnexpectedError(HttpServletRequest request) {
     return problem(

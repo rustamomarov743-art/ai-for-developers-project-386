@@ -1,5 +1,6 @@
 import { Link, Route, Routes } from 'react-router-dom'
 import './App.css'
+import AvailabilityPage from './AvailabilityPage'
 import MeetingTypesPage from './MeetingTypesPage'
 import OwnerLayout from './OwnerLayout'
 
@@ -48,10 +49,7 @@ function App() {
       <Route path="/owner" element={<OwnerLayout />}>
         <Route index element={<PlaceholderPage title="Страница владельца" />} />
         <Route path="meeting-types" element={<MeetingTypesPage />} />
-        <Route
-          path="availability"
-          element={<PlaceholderPage title="Доступность" />}
-        />
+        <Route path="availability" element={<AvailabilityPage />} />
       </Route>
       <Route
         path="/book"

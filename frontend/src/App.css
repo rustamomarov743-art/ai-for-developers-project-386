@@ -276,6 +276,122 @@
   color: #475569;
 }
 
+.availability-form {
+  margin-top: 24px;
+  display: grid;
+  gap: 16px;
+}
+
+.availability-form > label {
+  color: #172033;
+  font-weight: 650;
+}
+
+.availability-form input {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172033;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.availability-form input[readonly] {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.availability-day {
+  padding: 16px 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.availability-day summary {
+  color: #172033;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.availability-day > p {
+  color: #64748b;
+}
+
+.availability-day > button {
+  min-height: 40px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.availability-interval {
+  margin-top: 16px;
+  padding-top: 16px;
+  display: grid;
+  grid-template-columns: minmax(130px, 0.8fr) minmax(140px, 1fr);
+  gap: 8px 12px;
+  align-items: center;
+  border-top: 1px solid #e2e8f0;
+}
+
+.availability-interval label {
+  color: #475569;
+}
+
+.availability-interval .field-error,
+.availability-interval button {
+  grid-column: 1 / -1;
+}
+
+.availability-interval button {
+  justify-self: start;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: #b91c1c;
+  font: inherit;
+  cursor: pointer;
+}
+
+.availability-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.availability-actions button,
+[role='alert'] button {
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.availability-actions button + button {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #172033;
+}
+
+.availability-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 @media (max-width: 600px) {
   .owner-content {
     width: calc(100% - 32px);
@@ -284,5 +400,14 @@
 
   .meeting-type-form {
     padding: 20px;
+  }
+
+  .availability-interval {
+    grid-template-columns: 1fr;
+  }
+
+  .availability-interval .field-error,
+  .availability-interval button {
+    grid-column: 1;
   }
 }
