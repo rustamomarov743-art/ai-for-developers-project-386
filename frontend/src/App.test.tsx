@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,6 +9,7 @@ import {
   getBookingAvailability,
   listBookingMeetingTypes,
   listMeetingTypes,
+  listOwnerMeetings,
   replaceAvailability,
 } from './api/generated/sdk.gen'
 import type {
@@ -16,6 +17,7 @@ import type {
   BookingAvailability,
   Meeting,
   MeetingType,
+  OwnerMeeting,
   WeeklyTemplate,
 } from './api/generated/types.gen'
 import App from './App'
@@ -27,11 +29,13 @@ vi.mock('./api/generated/sdk.gen', () => ({
   getBookingAvailability: vi.fn(),
   listBookingMeetingTypes: vi.fn(),
   listMeetingTypes: vi.fn(),
+  listOwnerMeetings: vi.fn(),
   replaceAvailability: vi.fn(),
 }))
 
 const createBookingMock = vi.mocked(createBooking)
 const listMeetingTypesMock = vi.mocked(listMeetingTypes)
+const listOwnerMeetingsMock = vi.mocked(listOwnerMeetings)
 const createMeetingTypeMock = vi.mocked(createMeetingType)
 const getAvailabilityMock = vi.mocked(getAvailability)
 const replaceAvailabilityMock = vi.mocked(replaceAvailability)
@@ -42,6 +46,9 @@ const meetingTypesRequest = new Request(
 )
 const availabilityRequest = new Request(
   'http://localhost:8080/api/owner/availability',
+)
+const ownerMeetingsRequest = new Request(
+  'http://localhost:8080/api/owner/meetings',
 )
 const bookingTypesRequest = new Request(
   'http://localhost:8080/api/booking/meeting-types?timeZone=UTC',
@@ -66,6 +73,7 @@ const emptyWeeklyTemplate: WeeklyTemplate = {
 beforeEach(() => {
   createBookingMock.mockReset()
   listMeetingTypesMock.mockReset()
+  listOwnerMeetingsMock.mockReset()
   createMeetingTypeMock.mockReset()
   getAvailabilityMock.mockReset()
   replaceAvailabilityMock.mockReset()
@@ -91,10 +99,16 @@ beforeEach(() => {
     request: meetingTypesRequest,
     response: new Response(null, { status: 200 }),
   })
+  listOwnerMeetingsMock.mockResolvedValue({
+    data: [],
+    request: ownerMeetingsRequest,
+    response: new Response(null, { status: 200 }),
+  })
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.useRealTimers()
 })
 
 function renderApp(initialEntry = '/') {
@@ -173,6 +187,29 @@ function createdMeeting(meetingType: MeetingType): Meeting {
   }
 }
 
+function ownerMeeting(
+  id: string,
+  startsAt: string,
+  endsAt: string,
+  name = 'Консультация',
+  inProgress = false,
+): OwnerMeeting {
+  const meetingType = bookingType(`type-${id}`, name)
+  return {
+    id,
+    meetingTypeId: meetingType.id,
+    startsAt,
+    endsAt,
+    guestName: `Гость ${id}`,
+    guestEmail: `${id}@example.com`,
+    createdAt: '2026-11-13T09:00:00Z',
+    status: 'SCHEDULED',
+    meetingType,
+    durationMinutes: meetingType.durationMinutes,
+    inProgress,
+  }
+}
+
 describe('Главная страница', () => {
   it('описывает возможности гостя', () => {
     renderApp()
@@ -212,7 +249,10 @@ describe('Главная страница', () => {
     await user.click(screen.getByRole('link', { name: 'Страница владельца' }))
 
     expect(
-      await screen.findByRole('heading', { name: 'Страница владельца' }),
+      await screen.findByRole('heading', { name: 'Встречи', level: 1 }),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByText('Предстоящих встреч пока нет'),
     ).toBeInTheDocument()
   })
 })
@@ -232,6 +272,133 @@ describe('Навигация владельца', () => {
       'href',
       '/owner/availability',
     )
+  })
+})
+
+describe('Встречи владельца', () => {
+  it('показывает загрузку отдельно от пустого состояния и ошибки', () => {
+    listOwnerMeetingsMock.mockReturnValue(
+      new Promise<{
+        data: OwnerMeeting[]
+        request: Request
+        response: Response
+      }>(() => {}),
+    )
+    renderApp('/owner')
+
+    expect(screen.getByText('Загрузка…')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Предстоящих встреч пока нет'),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Не удалось загрузить встречи')).not.toBeInTheDocument()
+  })
+
+  it('отличает ошибку загрузки от пустого списка и позволяет повторить запрос', async () => {
+    const user = userEvent.setup()
+    listOwnerMeetingsMock.mockRejectedValueOnce(new Error('network'))
+    renderApp('/owner')
+
+    expect(
+      await screen.findByText('Не удалось загрузить встречи'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('Предстоящих встреч пока нет'),
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Повторить' }))
+
+    expect(
+      await screen.findByText('Предстоящих встреч пока нет'),
+    ).toBeInTheDocument()
+    expect(listOwnerMeetingsMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('группирует встречи по локальным датам и показывает данные гостя и прогресс', async () => {
+    listOwnerMeetingsMock.mockResolvedValue({
+      data: [
+        ownerMeeting(
+          'first',
+          '2026-11-16T10:00:00Z',
+          '2026-11-16T10:45:00Z',
+          'Консультация',
+          true,
+        ),
+        ownerMeeting('second', '2026-11-16T11:00:00Z', '2026-11-16T11:45:00Z', 'Демо'),
+        ownerMeeting('third', '2026-11-17T09:00:00Z', '2026-11-17T09:45:00Z'),
+      ],
+      request: ownerMeetingsRequest,
+      response: new Response(null, { status: 200 }),
+    })
+    renderApp('/owner')
+
+    const firstDate = await screen.findByRole('heading', {
+      name: /16 ноября 2026/,
+      level: 2,
+    })
+    const firstGroup = firstDate.closest('section')
+    expect(firstGroup).not.toBeNull()
+    expect(within(firstGroup!).getAllByRole('article')).toHaveLength(2)
+    const firstMeeting = within(firstGroup!).getAllByRole('article')[0]
+    expect(firstMeeting).toHaveTextContent('Консультация')
+    expect(firstMeeting).toHaveTextContent('13:00–13:45')
+    expect(firstMeeting).toHaveTextContent('45 мин')
+    expect(firstMeeting).toHaveTextContent('Гость first')
+    expect(firstMeeting).toHaveTextContent('first@example.com')
+    expect(firstMeeting).toHaveTextContent('Идёт сейчас')
+    expect(
+      screen.getByRole('heading', { name: /17 ноября 2026/, level: 2 }),
+    ).toBeInTheDocument()
+    expect(
+      within(firstGroup!.parentElement!).getAllByRole('heading', { level: 2 }),
+    ).toHaveLength(2)
+  })
+
+  it('показывает независимый месячный календарь без прошлых дней и гостевого окна', async () => {
+    vi.useFakeTimers({
+      now: new Date('2026-11-13T09:00:00Z'),
+      shouldAdvanceTime: true,
+    })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    listOwnerMeetingsMock.mockResolvedValue({
+      data: [
+        ownerMeeting('past', '2026-11-12T10:00:00Z', '2026-11-12T10:45:00Z', 'Прошлая'),
+        ownerMeeting('today', '2026-11-13T10:00:00Z', '2026-11-13T10:45:00Z', 'Сегодняшняя'),
+        ownerMeeting('future', '2027-01-15T10:00:00Z', '2027-01-15T10:45:00Z', 'Далёкая'),
+      ],
+      request: ownerMeetingsRequest,
+      response: new Response(null, { status: 200 }),
+    })
+    renderApp('/owner')
+    expect(await screen.findByText('Гость today')).toBeInTheDocument()
+
+    await user.click(screen.getByText('Календарь на месяц'))
+
+    expect(screen.getByRole('heading', { name: 'Ноябрь 2026' })).toBeInTheDocument()
+    expect(screen.getByText('Часовой пояс: Europe/Moscow')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Предыдущий месяц' })).toBeDisabled()
+    const pastDay = screen.getByRole('cell', { name: /12 ноября 2026/ })
+    expect(pastDay).toHaveClass('past-day')
+    expect(pastDay).not.toHaveTextContent('Прошлая')
+    expect(within(pastDay).queryByRole('button')).not.toBeInTheDocument()
+    expect(within(pastDay).queryByRole('link')).not.toBeInTheDocument()
+    const today = screen.getByRole('cell', { name: /13 ноября 2026/ })
+    expect(today).toHaveTextContent('13:00')
+    expect(today).toHaveTextContent('Сегодняшняя')
+    expect(within(today).queryByRole('button')).not.toBeInTheDocument()
+    expect(within(today).queryByRole('link')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Следующий месяц' }))
+    expect(screen.getByRole('heading', { name: 'Декабрь 2026' })).toBeInTheDocument()
+    expect(screen.getByText('Гость today')).toBeInTheDocument()
+    expect(listOwnerMeetingsMock).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole('button', { name: 'Следующий месяц' }))
+    expect(screen.getByRole('heading', { name: 'Январь 2027' })).toBeInTheDocument()
+    const futureDay = screen.getByRole('cell', { name: /15 января 2027/ })
+    expect(futureDay).toHaveTextContent('13:00')
+    expect(futureDay).toHaveTextContent('Далёкая')
+    expect(screen.getByRole('button', { name: 'Предыдущий месяц' })).toBeEnabled()
+    expect(screen.getByText('Гость today')).toBeInTheDocument()
   })
 })
 
@@ -1032,11 +1199,10 @@ describe('Страница владельца', () => {
     renderApp('/owner')
 
     expect(
-      screen.getByRole('heading', { name: 'Страница владельца' }),
+      screen.getByRole('heading', { name: 'Встречи', level: 1 }),
     ).toBeInTheDocument()
-    expect(screen.getByText('Раздел в разработке.')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('link', { name: 'На главную' }))
+    await user.click(screen.getByRole('link', { name: 'Календарь звонков' }))
 
     expect(
       await screen.findByRole('heading', {
