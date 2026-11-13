@@ -219,6 +219,12 @@ model OwnerMeeting {
 @get
 op listOwnerMeetings(): OwnerMeeting[] | InternalErrorResponse;
 
+@route("/api/owner/meetings/{id}/cancellation")
+@post
+op cancelMeeting(
+  @path id: string,
+): Meeting | NotFoundResponse | ConflictResponse | InternalErrorResponse;
+
 model CreateBookingRequest {
   meetingTypeId: string;
   startsAt: utcDateTime;

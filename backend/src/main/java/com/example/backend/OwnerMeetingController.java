@@ -3,6 +3,8 @@ package com.example.backend;
 import java.util.List;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -18,5 +20,10 @@ class OwnerMeetingController {
   @GetMapping("/api/owner/meetings")
   List<OwnerMeeting> listMeetings() {
     return store.upcomingMeetings();
+  }
+
+  @PostMapping("/api/owner/meetings/{id}/cancellation")
+  Meeting cancelMeeting(@PathVariable String id) {
+    return store.cancelMeeting(id);
   }
 }
