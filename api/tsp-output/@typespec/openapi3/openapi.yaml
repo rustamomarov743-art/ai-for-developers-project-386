@@ -145,6 +145,31 @@ components:
           format: int32
         weeklyTemplate:
           $ref: '#/components/schemas/WeeklyTemplate'
+        exceptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilityException'
+    AvailabilityException:
+      type: object
+      required:
+        - date
+        - type
+        - intervals
+      properties:
+        date:
+          type: string
+          format: date
+        type:
+          $ref: '#/components/schemas/AvailabilityExceptionType'
+        intervals:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+    AvailabilityExceptionType:
+      type: string
+      enum:
+        - CLOSED
+        - CUSTOM
     CreateMeetingTypeRequest:
       type: object
       required:
@@ -226,6 +251,7 @@ components:
         - timeZone
         - expectedVersion
         - weeklyTemplate
+        - exceptions
       properties:
         timeZone:
           type: string
@@ -235,6 +261,10 @@ components:
           nullable: true
         weeklyTemplate:
           $ref: '#/components/schemas/WeeklyTemplate'
+        exceptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilityException'
     TimeInterval:
       type: object
       required:

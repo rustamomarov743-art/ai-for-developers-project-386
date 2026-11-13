@@ -362,6 +362,65 @@
   cursor: pointer;
 }
 
+.availability-exceptions {
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.availability-exceptions h2,
+.availability-exception h3 {
+  margin: 0;
+  color: #172033;
+}
+
+.availability-exception {
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.availability-exception > label {
+  margin-top: 8px;
+  color: #475569;
+  font-weight: 650;
+}
+
+.availability-exception select {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172033;
+  font: inherit;
+}
+
+.availability-exception > button,
+.availability-exceptions > button {
+  min-height: 40px;
+  justify-self: start;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.availability-exception > button.remove-exception {
+  margin-top: 8px;
+  background: transparent;
+  color: #b91c1c;
+}
+
 .availability-actions {
   display: flex;
   flex-wrap: wrap;

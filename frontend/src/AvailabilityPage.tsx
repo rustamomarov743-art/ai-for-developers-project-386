@@ -6,6 +6,8 @@ import {
 } from './api/generated/sdk.gen'
 import type {
   Availability,
+  AvailabilityException,
+  AvailabilityExceptionType,
   WeeklyTemplate,
 } from './api/generated/types.gen'
 
@@ -22,6 +24,7 @@ const days: Array<{ key: keyof WeeklyTemplate; label: string }> = [
 type AvailabilityDraft = {
   timeZone: string
   weeklyTemplate: WeeklyTemplate
+  exceptions: AvailabilityException[]
 }
 
 function emptyWeeklyTemplate(): WeeklyTemplate {
@@ -45,6 +48,35 @@ function browserTimeZone() {
   } catch {
     return 'UTC'
   }
+}
+
+function todayInTimeZone(timeZone: string) {
+  try {
+    const parts = new Intl.DateTimeFormat('en', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date())
+    const values = Object.fromEntries(
+      parts.map((part) => [part.type, part.value]),
+    )
+    return `${values.year}-${values.month}-${values.day}`
+  } catch {
+    return todayInTimeZone('UTC')
+  }
+}
+
+function sortExceptions(exceptions: AvailabilityException[]) {
+  return [...exceptions].sort((first, second) =>
+    first.date.localeCompare(second.date),
+  )
+}
+
+function isValidDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00Z`)
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }
 
 function validateDraft(draft: AvailabilityDraft) {
@@ -85,6 +117,48 @@ function validateDraft(draft: AvailabilityDraft) {
       }
     }
   }
+  const today = todayInTimeZone(draft.timeZone)
+  draft.exceptions.forEach((exception, exceptionIndex) => {
+    const path = `exceptions[${exceptionIndex}]`
+    if (!isValidDate(exception.date)) {
+      errors[`${path}.date`] = 'Укажите дату в формате ГГГГ-ММ-ДД'
+    } else if (exception.date < today) {
+      errors[`${path}.date`] = 'Дата исключения не может быть в прошлом'
+    }
+    if (exception.type === 'CLOSED' && exception.intervals.length > 0) {
+      errors[`${path}.intervals`] = 'Закрытый день не содержит интервалов'
+    }
+    if (exception.type === 'CUSTOM' && exception.intervals.length === 0) {
+      errors[`${path}.intervals`] = 'Особый день требует хотя бы один интервал'
+    }
+    exception.intervals.forEach((interval, intervalIndex) => {
+      if (!timePattern.test(interval.start)) {
+        errors[`${path}.intervals[${intervalIndex}].start`] =
+          'Формат времени — HH:mm'
+      }
+      if (!timePattern.test(interval.end)) {
+        errors[`${path}.intervals[${intervalIndex}].end`] =
+          'Формат времени — HH:mm'
+      } else if (
+        timePattern.test(interval.start) &&
+        interval.start >= interval.end
+      ) {
+        errors[`${path}.intervals[${intervalIndex}].end`] =
+          'Окончание должно быть позже начала'
+      }
+    })
+    const sorted = exception.intervals
+      .filter(
+        (interval) =>
+          timePattern.test(interval.start) && timePattern.test(interval.end),
+      )
+      .sort((first, second) => first.start.localeCompare(second.start))
+    for (let index = 1; index < sorted.length; index += 1) {
+      if (sorted[index - 1].end > sorted[index].start) {
+        errors[`${path}.intervals`] = 'Интервалы не должны пересекаться'
+      }
+    }
+  })
   return errors
 }
 
@@ -93,6 +167,7 @@ function AvailabilityPage() {
   const [draft, setDraft] = useState<AvailabilityDraft>({
     timeZone: browserTimeZone(),
     weeklyTemplate: emptyWeeklyTemplate(),
+    exceptions: [],
   })
   const [savedDraft, setSavedDraft] = useState(draft)
   const [loading, setLoading] = useState(true)
@@ -119,8 +194,13 @@ function AvailabilityPage() {
           ? {
               timeZone: data.timeZone ?? 'UTC',
               weeklyTemplate: data.weeklyTemplate ?? emptyWeeklyTemplate(),
+              exceptions: data.exceptions ?? [],
             }
-          : { timeZone: browserTimeZone(), weeklyTemplate: emptyWeeklyTemplate() }
+          : {
+              timeZone: browserTimeZone(),
+              weeklyTemplate: emptyWeeklyTemplate(),
+              exceptions: [],
+            }
         setSaved(data)
         setDraft(nextDraft)
         setSavedDraft(nextDraft)
@@ -199,6 +279,107 @@ function AvailabilityPage() {
     }))
   }
 
+  function changeExceptions(
+    change: (exceptions: AvailabilityException[]) => AvailabilityException[],
+  ) {
+    setDraft((current) => ({
+      ...current,
+      exceptions: sortExceptions(change(current.exceptions)),
+    }))
+  }
+
+  function addException() {
+    setDraft((current) => ({
+      ...current,
+      exceptions: sortExceptions([
+        ...current.exceptions,
+        {
+          date: todayInTimeZone(current.timeZone),
+          type: 'CLOSED',
+          intervals: [],
+        },
+      ]),
+    }))
+  }
+
+  function updateExceptionDate(index: number, date: string) {
+    changeExceptions((exceptions) =>
+      exceptions.map((exception, exceptionIndex) =>
+        exceptionIndex === index ? { ...exception, date } : exception,
+      ),
+    )
+  }
+
+  function updateExceptionType(index: number, type: AvailabilityExceptionType) {
+    changeExceptions((exceptions) =>
+      exceptions.map((exception, exceptionIndex) =>
+        exceptionIndex === index
+          ? {
+              ...exception,
+              type,
+              intervals: type === 'CLOSED' ? [] : exception.intervals,
+            }
+          : exception,
+      ),
+    )
+  }
+
+  function removeException(index: number) {
+    changeExceptions((exceptions) =>
+      exceptions.filter((_, exceptionIndex) => exceptionIndex !== index),
+    )
+  }
+
+  function addExceptionInterval(exceptionIndex: number) {
+    changeExceptions((exceptions) =>
+      exceptions.map((exception, index) =>
+        index === exceptionIndex
+          ? {
+              ...exception,
+              intervals: [...exception.intervals, { start: '', end: '' }],
+            }
+          : exception,
+      ),
+    )
+  }
+
+  function updateExceptionInterval(
+    exceptionIndex: number,
+    intervalIndex: number,
+    field: 'start' | 'end',
+    value: string,
+  ) {
+    changeExceptions((exceptions) =>
+      exceptions.map((exception, index) =>
+        index === exceptionIndex
+          ? {
+              ...exception,
+              intervals: exception.intervals.map((interval, indexToUpdate) =>
+                indexToUpdate === intervalIndex
+                  ? { ...interval, [field]: value }
+                  : interval,
+              ),
+            }
+          : exception,
+      ),
+    )
+  }
+
+  function removeExceptionInterval(exceptionIndex: number, intervalIndex: number) {
+    changeExceptions((exceptions) =>
+      exceptions.map((exception, index) =>
+        index === exceptionIndex
+          ? {
+              ...exception,
+              intervals: exception.intervals.filter(
+                (_, indexToRemove) => indexToRemove !== intervalIndex,
+              ),
+            }
+          : exception,
+      ),
+    )
+  }
+
   function handleCancel() {
     if (!window.confirm('Отменить несохранённые изменения?')) return
     setDraft(savedDraft)
@@ -225,6 +406,7 @@ function AvailabilityPage() {
         const nextDraft = {
           timeZone: data.timeZone ?? draft.timeZone,
           weeklyTemplate: data.weeklyTemplate ?? draft.weeklyTemplate,
+          exceptions: data.exceptions ?? draft.exceptions,
         }
         setSaved(data)
         setDraft(nextDraft)
@@ -363,6 +545,153 @@ function AvailabilityPage() {
             </button>
           </details>
         ))}
+        <section className="availability-exceptions" aria-labelledby="exceptions-title">
+          <h2 id="exceptions-title">Исключения</h2>
+          {draft.exceptions.length === 0 && <p>Исключений нет</p>}
+          {draft.exceptions.map((exception, exceptionIndex) => (
+            <div className="availability-exception" key={exceptionIndex}>
+              <h3>Исключение {exceptionIndex + 1}</h3>
+              <label htmlFor={`exception-${exceptionIndex}-date`}>
+                Дата исключения {exceptionIndex + 1}
+              </label>
+              <input
+                id={`exception-${exceptionIndex}-date`}
+                type="date"
+                value={exception.date}
+                onChange={(event) =>
+                  updateExceptionDate(exceptionIndex, event.target.value)
+                }
+              />
+              {fieldErrors[`exceptions[${exceptionIndex}].date`] && (
+                <p className="field-error">
+                  {fieldErrors[`exceptions[${exceptionIndex}].date`]}
+                </p>
+              )}
+              <label htmlFor={`exception-${exceptionIndex}-type`}>
+                Тип исключения {exceptionIndex + 1}
+              </label>
+              <select
+                id={`exception-${exceptionIndex}-type`}
+                value={exception.type}
+                onChange={(event) =>
+                  updateExceptionType(
+                    exceptionIndex,
+                    event.target.value as AvailabilityExceptionType,
+                  )
+                }
+              >
+                <option value="CLOSED">Закрытый день</option>
+                <option value="CUSTOM">Особое расписание</option>
+              </select>
+              {fieldErrors[`exceptions[${exceptionIndex}].type`] && (
+                <p className="field-error">
+                  {fieldErrors[`exceptions[${exceptionIndex}].type`]}
+                </p>
+              )}
+              {exception.type === 'CLOSED' ? (
+                <p>День закрыт</p>
+              ) : (
+                <>
+                  {exception.intervals.length === 0 && <p>Интервалы не заданы</p>}
+                  {exception.intervals.map((interval, intervalIndex) => (
+                    <div className="availability-interval" key={intervalIndex}>
+                      <label
+                        htmlFor={`exception-${exceptionIndex}-${intervalIndex}-start`}
+                      >
+                        Исключение {exceptionIndex + 1}: начало {intervalIndex + 1}
+                      </label>
+                      <input
+                        id={`exception-${exceptionIndex}-${intervalIndex}-start`}
+                        type="time"
+                        step={60}
+                        value={interval.start}
+                        onChange={(event) =>
+                          updateExceptionInterval(
+                            exceptionIndex,
+                            intervalIndex,
+                            'start',
+                            event.target.value,
+                          )
+                        }
+                      />
+                      {fieldErrors[
+                        `exceptions[${exceptionIndex}].intervals[${intervalIndex}].start`
+                      ] && (
+                        <p className="field-error">
+                          {
+                            fieldErrors[
+                              `exceptions[${exceptionIndex}].intervals[${intervalIndex}].start`
+                            ]
+                          }
+                        </p>
+                      )}
+                      <label
+                        htmlFor={`exception-${exceptionIndex}-${intervalIndex}-end`}
+                      >
+                        Исключение {exceptionIndex + 1}: окончание {intervalIndex + 1}
+                      </label>
+                      <input
+                        id={`exception-${exceptionIndex}-${intervalIndex}-end`}
+                        type="time"
+                        step={60}
+                        value={interval.end}
+                        onChange={(event) =>
+                          updateExceptionInterval(
+                            exceptionIndex,
+                            intervalIndex,
+                            'end',
+                            event.target.value,
+                          )
+                        }
+                      />
+                      {fieldErrors[
+                        `exceptions[${exceptionIndex}].intervals[${intervalIndex}].end`
+                      ] && (
+                        <p className="field-error">
+                          {
+                            fieldErrors[
+                              `exceptions[${exceptionIndex}].intervals[${intervalIndex}].end`
+                            ]
+                          }
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          removeExceptionInterval(exceptionIndex, intervalIndex)
+                        }
+                      >
+                        Удалить интервал {intervalIndex + 1} — исключение{' '}
+                        {exceptionIndex + 1}
+                      </button>
+                    </div>
+                  ))}
+                  {fieldErrors[`exceptions[${exceptionIndex}].intervals`] && (
+                    <p className="field-error">
+                      {fieldErrors[`exceptions[${exceptionIndex}].intervals`]}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => addExceptionInterval(exceptionIndex)}
+                  >
+                    Добавить интервал — исключение {exceptionIndex + 1}
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                className="remove-exception"
+                onClick={() => removeException(exceptionIndex)}
+              >
+                Удалить исключение {exceptionIndex + 1}
+              </button>
+            </div>
+          ))}
+          <button type="button" onClick={addException}>
+            Добавить исключение
+          </button>
+        </section>
         <div className="availability-actions">
           <button
             type="submit"

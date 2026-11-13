@@ -14,7 +14,16 @@ export type Availability = {
     timeZone?: string;
     version?: number;
     weeklyTemplate?: WeeklyTemplate;
+    exceptions?: Array<AvailabilityException>;
 };
+
+export type AvailabilityException = {
+    date: string;
+    type: AvailabilityExceptionType;
+    intervals: Array<TimeInterval>;
+};
+
+export type AvailabilityExceptionType = 'CLOSED' | 'CUSTOM';
 
 export type CreateMeetingTypeRequest = {
     name: string;
@@ -48,6 +57,7 @@ export type ReplaceAvailabilityRequest = {
     timeZone: string;
     expectedVersion: number | null;
     weeklyTemplate: WeeklyTemplate;
+    exceptions: Array<AvailabilityException>;
 };
 
 export type TimeInterval = {
