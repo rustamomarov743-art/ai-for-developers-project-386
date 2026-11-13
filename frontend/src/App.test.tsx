@@ -126,6 +126,15 @@ function renderApp(initialEntry = '/') {
   return render(<RouterProvider router={router} />)
 }
 
+function mockBrowserTimeZone(timeZone: string) {
+  const resolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions
+  vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockImplementation(
+    function (this: Intl.DateTimeFormat) {
+      return { ...resolvedOptions.call(this), timeZone }
+    },
+  )
+}
+
 function bookingType(id: string, name: string): MeetingType {
   return {
     id,
@@ -283,6 +292,10 @@ describe('Навигация владельца', () => {
 })
 
 describe('Встречи владельца', () => {
+  beforeEach(() => {
+    mockBrowserTimeZone('Europe/Moscow')
+  })
+
   it('показывает загрузку отдельно от пустого состояния и ошибки', () => {
     listOwnerMeetingsMock.mockReturnValue(
       new Promise<{
