@@ -3,6 +3,7 @@ package com.example.backend;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -19,6 +20,7 @@ class InMemoryCalendarStore {
   private final Clock clock;
   private final SlotCalculator slotCalculator;
   private final List<StoredMeetingType> meetingTypes = new ArrayList<>();
+  private final List<Meeting> meetings = new ArrayList<>();
   private Availability availability;
   private long nextSequence;
 
@@ -351,7 +353,7 @@ class InMemoryCalendarStore {
     return meetingTypes().stream()
         .filter(meetingType ->
             slotCalculator
-                .calculate(meetingType, availability, guestZone, List.of())
+                .calculate(meetingType, availability, guestZone, busyIntervals())
                 .hasAvailableSlots())
         .toList();
   }
@@ -363,7 +365,96 @@ class InMemoryCalendarStore {
             .filter(candidate -> candidate.id().equals(id))
             .findFirst()
             .orElseThrow(MeetingTypeNotFoundException::new);
-    return slotCalculator.calculate(meetingType, availability, guestZone, List.of());
+    return slotCalculator.calculate(meetingType, availability, guestZone, busyIntervals());
+  }
+
+  synchronized Meeting createBooking(CreateBookingRequest request) {
+    var validated = validateBooking(request);
+    var meetingType =
+        meetingTypes().stream()
+            .filter(candidate -> candidate.id().equals(validated.meetingTypeId()))
+            .findFirst()
+            .orElseThrow(SlotUnavailableException::new);
+    var calculated =
+        slotCalculator.calculate(meetingType, availability, ZoneOffset.UTC, busyIntervals());
+    var slot =
+        calculated.days().stream()
+            .flatMap(day -> day.slots().stream())
+            .filter(candidate -> candidate.startsAt().equals(validated.startsAt()))
+            .findFirst()
+            .orElseThrow(SlotUnavailableException::new);
+    if (slot.status() != BookingSlotStatus.AVAILABLE) {
+      throw new SlotUnavailableException();
+    }
+    var meeting =
+        new Meeting(
+            UUID.randomUUID().toString(),
+            meetingType.id(),
+            slot.startsAt(),
+            slot.endsAt(),
+            validated.guestName(),
+            validated.guestEmail(),
+            clock.instant(),
+            MeetingStatus.SCHEDULED,
+            meetingType);
+    meetings.add(meeting);
+    return meeting;
+  }
+
+  private static ValidatedBooking validateBooking(CreateBookingRequest request) {
+    if ((isPresent(request.meetingTypeId()) && !request.meetingTypeId().isTextual())
+        || (isPresent(request.startsAt()) && !request.startsAt().isTextual())
+        || (isPresent(request.guestName()) && !request.guestName().isTextual())
+        || (isPresent(request.guestEmail()) && !request.guestEmail().isTextual())) {
+      throw new MalformedRequestException();
+    }
+    var errors = new ArrayList<ApiFieldError>();
+    var meetingTypeId =
+        isPresent(request.meetingTypeId()) ? request.meetingTypeId().textValue().trim() : "";
+    if (meetingTypeId.isEmpty()) {
+      errors.add(new ApiFieldError("meetingTypeId", "Тип встречи обязателен"));
+    }
+    java.time.Instant startsAt = null;
+    try {
+      startsAt =
+          java.time.Instant.parse(
+              isPresent(request.startsAt()) ? request.startsAt().textValue().trim() : "");
+    } catch (RuntimeException exception) {
+      errors.add(new ApiFieldError("startsAt", "Укажите начало встречи в формате ISO 8601 UTC"));
+    }
+    var guestName = isPresent(request.guestName()) ? request.guestName().textValue().trim() : "";
+    if (guestName.isEmpty()) {
+      errors.add(new ApiFieldError("guestName", "Имя обязательно"));
+    } else if (guestName.length() > 100) {
+      errors.add(new ApiFieldError("guestName", "Имя должно содержать не более 100 символов"));
+    }
+    var guestEmail = isPresent(request.guestEmail()) ? request.guestEmail().textValue().trim() : "";
+    if (guestEmail.isEmpty()) {
+      errors.add(new ApiFieldError("guestEmail", "Email обязателен"));
+    } else if (guestEmail.length() > 254) {
+      errors.add(new ApiFieldError("guestEmail", "Email должен содержать не более 254 символов"));
+    } else if (!isValidEmail(guestEmail)) {
+      errors.add(new ApiFieldError("guestEmail", "Укажите корректный email"));
+    }
+    if (!errors.isEmpty()) {
+      throw new RequestValidationException(errors);
+    }
+    return new ValidatedBooking(meetingTypeId, startsAt, guestName, guestEmail);
+  }
+
+  private static boolean isValidEmail(String email) {
+    var at = email.indexOf('@');
+    return at > 0
+        && at == email.lastIndexOf('@')
+        && at < email.length() - 1
+        && email.chars().noneMatch(Character::isWhitespace);
+  }
+
+  private List<BusyInterval> busyIntervals() {
+    return meetings.stream()
+        .filter(meeting -> meeting.status() == MeetingStatus.SCHEDULED)
+        .map(meeting -> new BusyInterval(meeting.startsAt(), meeting.endsAt()))
+        .toList();
   }
 
   private ZoneId guestZone(String timeZone) {
@@ -378,6 +469,9 @@ class InMemoryCalendarStore {
           List.of(new ApiFieldError("timeZone", "Укажите корректный IANA-часовой пояс")));
     }
   }
+
+  private record ValidatedBooking(
+      String meetingTypeId, java.time.Instant startsAt, String guestName, String guestEmail) {}
 
   private record StoredMeetingType(MeetingType meetingType, long sequence) {}
 }
