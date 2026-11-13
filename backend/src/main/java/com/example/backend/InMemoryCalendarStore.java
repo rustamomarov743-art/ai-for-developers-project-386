@@ -390,6 +390,35 @@ class InMemoryCalendarStore {
         .toList();
   }
 
+  synchronized Meeting cancelMeeting(String id) {
+    for (int index = 0; index < meetings.size(); index++) {
+      var meeting = meetings.get(index);
+      if (!meeting.id().equals(id)) {
+        continue;
+      }
+      if (meeting.status() == MeetingStatus.CANCELLED) {
+        throw new MeetingAlreadyCancelledException();
+      }
+      if (!meeting.startsAt().isAfter(clock.instant())) {
+        throw new MeetingAlreadyStartedException();
+      }
+      var cancelled =
+          new Meeting(
+              meeting.id(),
+              meeting.meetingTypeId(),
+              meeting.startsAt(),
+              meeting.endsAt(),
+              meeting.guestName(),
+              meeting.guestEmail(),
+              meeting.createdAt(),
+              MeetingStatus.CANCELLED,
+              meeting.meetingType());
+      meetings.set(index, cancelled);
+      return cancelled;
+    }
+    throw new MeetingNotFoundException();
+  }
+
   synchronized Meeting createBooking(CreateBookingRequest request) {
     var validated = validateBooking(request);
     var meetingType =

@@ -391,3 +391,38 @@ export type ListOwnerMeetingsResponses = {
 };
 
 export type ListOwnerMeetingsResponse = ListOwnerMeetingsResponses[keyof ListOwnerMeetingsResponses];
+
+export type CancelMeetingData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/owner/meetings/{id}/cancellation';
+};
+
+export type CancelMeetingErrors = {
+    /**
+     * The server cannot find the requested resource.
+     */
+    404: ProblemDetails;
+    /**
+     * The request conflicts with the current state of the server.
+     */
+    409: ProblemDetails;
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type CancelMeetingError = CancelMeetingErrors[keyof CancelMeetingErrors];
+
+export type CancelMeetingResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Meeting;
+};
+
+export type CancelMeetingResponse = CancelMeetingResponses[keyof CancelMeetingResponses];

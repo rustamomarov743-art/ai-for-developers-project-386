@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { listOwnerMeetings } from './api/generated/sdk.gen'
+import { cancelMeeting, listOwnerMeetings } from './api/generated/sdk.gen'
 import type { OwnerMeeting } from './api/generated/types.gen'
 import OwnerCalendar from './OwnerCalendar'
 
@@ -29,6 +29,9 @@ function OwnerMeetingsPage() {
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [loadAttempt, setLoadAttempt] = useState(0)
+  const [meetingToCancel, setMeetingToCancel] = useState<OwnerMeeting | null>(null)
+  const [cancelling, setCancelling] = useState(false)
+  const [cancellationMessage, setCancellationMessage] = useState('')
 
   useEffect(() => {
     let active = true
@@ -55,6 +58,33 @@ function OwnerMeetingsPage() {
     }
   }, [loadAttempt])
 
+  async function confirmCancellation() {
+    if (!meetingToCancel) return
+    setCancelling(true)
+    try {
+      const { data, error, response } = await cancelMeeting({
+        path: { id: meetingToCancel.id },
+      })
+      if (response.ok && data) {
+        setMeetings((current) =>
+          current.filter((meeting) => meeting.id !== meetingToCancel.id),
+        )
+        setMeetingToCancel(null)
+        setCancellationMessage('Встреча отменена')
+      } else if (error?.code === 'MEETING_ALREADY_STARTED') {
+        setMeetingToCancel(null)
+        setCancellationMessage('Встречу нельзя отменить после начала')
+        setLoadAttempt((value) => value + 1)
+      } else {
+        setCancellationMessage('Не удалось отменить встречу. Попробуйте ещё раз')
+      }
+    } catch {
+      setCancellationMessage('Не удалось отменить встречу. Попробуйте ещё раз')
+    } finally {
+      setCancelling(false)
+    }
+  }
+
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
   const groups = new Map<string, OwnerMeeting[]>()
   meetings.forEach((meeting) => {
@@ -65,6 +95,7 @@ function OwnerMeetingsPage() {
   return (
     <main className="owner-content">
       <h1>Встречи</h1>
+      {cancellationMessage && <p role="status">{cancellationMessage}</p>}
       {loading && <p role="status">Загрузка…</p>}
       {loadFailed && (
         <div role="alert">
@@ -111,6 +142,11 @@ function OwnerMeetingsPage() {
                 </p>
                 <p>{meeting.guestName}</p>
                 <a href={`mailto:${meeting.guestEmail}`}>{meeting.guestEmail}</a>
+                {!meeting.inProgress && (
+                  <button type="button" onClick={() => setMeetingToCancel(meeting)}>
+                    Отменить встречу
+                  </button>
+                )}
               </article>
             ))}
           </section>
@@ -118,6 +154,46 @@ function OwnerMeetingsPage() {
       </div>
       {!loading && !loadFailed && (
         <OwnerCalendar meetings={meetings} timeZone={timeZone} />
+      )}
+      {meetingToCancel && (
+        <div className="dialog-backdrop">
+          <section
+            className="cancellation-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancellation-dialog-title"
+          >
+            <h2 id="cancellation-dialog-title">Отменить встречу?</h2>
+            <p>{meetingToCancel.meetingType.name}</p>
+            <p>{meetingToCancel.guestName}</p>
+            <p>
+              {new Intl.DateTimeFormat('ru-RU', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+                timeZone,
+              }).format(new Date(meetingToCancel.startsAt))}
+              , {formatTime(meetingToCancel.startsAt, timeZone)}–
+              {formatTime(meetingToCancel.endsAt, timeZone)}
+            </p>
+            <div className="dialog-actions">
+              <button
+                type="button"
+                disabled={cancelling}
+                onClick={() => setMeetingToCancel(null)}
+              >
+                Не отменять
+              </button>
+              <button
+                type="button"
+                disabled={cancelling}
+                onClick={confirmCancellation}
+              >
+                Подтвердить отмену
+              </button>
+            </div>
+          </section>
+        </div>
       )}
     </main>
   )

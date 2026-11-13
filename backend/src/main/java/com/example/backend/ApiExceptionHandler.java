@@ -44,6 +44,27 @@ class ApiExceptionHandler {
         HttpStatus.NOT_FOUND, "MEETING_TYPE_NOT_FOUND", "Тип встречи не найден", request, null);
   }
 
+  @ExceptionHandler(MeetingNotFoundException.class)
+  ResponseEntity<ProblemDetails> handleMeetingNotFound(HttpServletRequest request) {
+    return problem(HttpStatus.NOT_FOUND, "MEETING_NOT_FOUND", "Встреча не найдена", request, null);
+  }
+
+  @ExceptionHandler(MeetingAlreadyStartedException.class)
+  ResponseEntity<ProblemDetails> handleMeetingAlreadyStarted(HttpServletRequest request) {
+    return problem(
+        HttpStatus.CONFLICT,
+        "MEETING_ALREADY_STARTED",
+        "Встречу нельзя отменить после начала",
+        request,
+        null);
+  }
+
+  @ExceptionHandler(MeetingAlreadyCancelledException.class)
+  ResponseEntity<ProblemDetails> handleMeetingAlreadyCancelled(HttpServletRequest request) {
+    return problem(
+        HttpStatus.CONFLICT, "MEETING_ALREADY_CANCELLED", "Встреча уже отменена", request, null);
+  }
+
   @ExceptionHandler(SlotUnavailableException.class)
   ResponseEntity<ProblemDetails> handleSlotUnavailable(HttpServletRequest request) {
     return problem(

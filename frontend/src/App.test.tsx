@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  cancelMeeting,
   createBooking,
   createMeetingType,
   getAvailability,
@@ -23,6 +24,7 @@ import type {
 import App from './App'
 
 vi.mock('./api/generated/sdk.gen', () => ({
+  cancelMeeting: vi.fn(),
   createBooking: vi.fn(),
   createMeetingType: vi.fn(),
   getAvailability: vi.fn(),
@@ -33,6 +35,7 @@ vi.mock('./api/generated/sdk.gen', () => ({
   replaceAvailability: vi.fn(),
 }))
 
+const cancelMeetingMock = vi.mocked(cancelMeeting)
 const createBookingMock = vi.mocked(createBooking)
 const listMeetingTypesMock = vi.mocked(listMeetingTypes)
 const listOwnerMeetingsMock = vi.mocked(listOwnerMeetings)
@@ -60,6 +63,10 @@ const createBookingRequest = new Request(
   'http://localhost:8080/api/booking/bookings',
   { method: 'POST' },
 )
+const cancellationRequest = new Request(
+  'http://localhost:8080/api/owner/meetings/future/cancellation',
+  { method: 'POST' },
+)
 const emptyWeeklyTemplate: WeeklyTemplate = {
   MONDAY: [],
   TUESDAY: [],
@@ -71,6 +78,7 @@ const emptyWeeklyTemplate: WeeklyTemplate = {
 }
 
 beforeEach(() => {
+  cancelMeetingMock.mockReset()
   createBookingMock.mockReset()
   listMeetingTypesMock.mockReset()
   listOwnerMeetingsMock.mockReset()
@@ -351,6 +359,169 @@ describe('Встречи владельца', () => {
     expect(
       within(firstGroup!.parentElement!).getAllByRole('heading', { level: 2 }),
     ).toHaveLength(2)
+  })
+
+  it('открывает диалог только для будущей встречи и закрывает его без изменений', async () => {
+    const user = userEvent.setup()
+    listOwnerMeetingsMock.mockResolvedValue({
+      data: [
+        ownerMeeting(
+          'current',
+          '2026-11-16T09:00:00Z',
+          '2026-11-16T09:45:00Z',
+          'Текущая',
+          true,
+        ),
+        ownerMeeting(
+          'future',
+          '2026-11-16T10:00:00Z',
+          '2026-11-16T10:45:00Z',
+          'Консультация',
+        ),
+      ],
+      request: ownerMeetingsRequest,
+      response: new Response(null, { status: 200 }),
+    })
+    renderApp('/owner')
+    expect(await screen.findByText('Гость future')).toBeInTheDocument()
+
+    const cancelButtons = screen.getAllByRole('button', {
+      name: 'Отменить встречу',
+    })
+    expect(cancelButtons).toHaveLength(1)
+    await user.click(cancelButtons[0])
+
+    const dialog = screen.getByRole('dialog', { name: 'Отменить встречу?' })
+    expect(dialog).toHaveTextContent('Консультация')
+    expect(dialog).toHaveTextContent('Гость future')
+    expect(dialog).toHaveTextContent(/16 ноября 2026/)
+    expect(dialog).toHaveTextContent('13:00–13:45')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Не отменять' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByText('Гость future')).toBeInTheDocument()
+    expect(cancelMeetingMock).not.toHaveBeenCalled()
+  })
+
+  it('подтверждает отмену, скрывает встречу и показывает успех', async () => {
+    const user = userEvent.setup()
+    const future = ownerMeeting(
+      'future',
+      '2026-11-16T10:00:00Z',
+      '2026-11-16T10:45:00Z',
+    )
+    listOwnerMeetingsMock.mockResolvedValue({
+      data: [future],
+      request: ownerMeetingsRequest,
+      response: new Response(null, { status: 200 }),
+    })
+    cancelMeetingMock.mockResolvedValue({
+      data: { ...future, status: 'CANCELLED' },
+      request: cancellationRequest,
+      response: new Response(null, { status: 200 }),
+    })
+    renderApp('/owner')
+    await user.click(
+      await screen.findByRole('button', { name: 'Отменить встречу' }),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Подтвердить отмену' }))
+
+    expect(await screen.findByText('Встреча отменена')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByText('Гость future')).not.toBeInTheDocument()
+    expect(screen.getByText('Предстоящих встреч пока нет')).toBeInTheDocument()
+    expect(cancelMeetingMock).toHaveBeenCalledWith({ path: { id: 'future' } })
+  })
+
+  it('обновляет встречу и сообщает, если отмена опоздала', async () => {
+    const user = userEvent.setup()
+    const future = ownerMeeting(
+      'future',
+      '2026-11-16T10:00:00Z',
+      '2026-11-16T10:45:00Z',
+    )
+    listOwnerMeetingsMock
+      .mockResolvedValueOnce({
+        data: [future],
+        request: ownerMeetingsRequest,
+        response: new Response(null, { status: 200 }),
+      })
+      .mockResolvedValueOnce({
+        data: [{ ...future, inProgress: true }],
+        request: ownerMeetingsRequest,
+        response: new Response(null, { status: 200 }),
+      })
+    cancelMeetingMock.mockResolvedValue({
+      data: undefined,
+      error: {
+        type: 'about:blank',
+        title: 'Conflict',
+        status: 409,
+        detail: 'Встречу нельзя отменить после начала',
+        instance: '/api/owner/meetings/future/cancellation',
+        code: 'MEETING_ALREADY_STARTED',
+      },
+      request: cancellationRequest,
+      response: new Response(null, { status: 409 }),
+    })
+    renderApp('/owner')
+    await user.click(
+      await screen.findByRole('button', { name: 'Отменить встречу' }),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Подтвердить отмену' }))
+
+    expect(
+      await screen.findByText('Встречу нельзя отменить после начала'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(await screen.findByText('Идёт сейчас')).toBeInTheDocument()
+    expect(screen.getByText('Гость future')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Отменить встречу' }),
+    ).not.toBeInTheDocument()
+    expect(listOwnerMeetingsMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('сохраняет встречу при сбое и позволяет повторить отмену', async () => {
+    const user = userEvent.setup()
+    const future = ownerMeeting(
+      'future',
+      '2026-11-16T10:00:00Z',
+      '2026-11-16T10:45:00Z',
+    )
+    listOwnerMeetingsMock.mockResolvedValue({
+      data: [future],
+      request: ownerMeetingsRequest,
+      response: new Response(null, { status: 200 }),
+    })
+    cancelMeetingMock
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce({
+        data: { ...future, status: 'CANCELLED' },
+        request: cancellationRequest,
+        response: new Response(null, { status: 200 }),
+      })
+    renderApp('/owner')
+    await user.click(
+      await screen.findByRole('button', { name: 'Отменить встречу' }),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Подтвердить отмену' }))
+
+    expect(
+      await screen.findByText('Не удалось отменить встречу. Попробуйте ещё раз'),
+    ).toBeInTheDocument()
+    expect(screen.getAllByText('Гость future')).toHaveLength(2)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Подтвердить отмену' }))
+
+    expect(await screen.findByText('Встреча отменена')).toBeInTheDocument()
+    expect(screen.queryByText('Гость future')).not.toBeInTheDocument()
+    expect(cancelMeetingMock).toHaveBeenCalledTimes(2)
   })
 
   it('показывает независимый месячный календарь без прошлых дней и гостевого окна', async () => {

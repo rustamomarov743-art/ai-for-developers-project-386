@@ -782,6 +782,73 @@
   font-weight: 700;
 }
 
+.owner-meeting-card > button {
+  margin-top: 14px;
+  padding: 9px 14px;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #b91c1c;
+  font: inherit;
+  cursor: pointer;
+}
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(15 23 42 / 55%);
+}
+
+.cancellation-dialog {
+  width: min(100%, 440px);
+  padding: 24px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 20px 50px rgb(15 23 42 / 25%);
+}
+
+.cancellation-dialog h2 {
+  margin-top: 0;
+  color: #172033;
+}
+
+.cancellation-dialog p {
+  color: #475569;
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.dialog-actions button {
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172033;
+  font: inherit;
+  cursor: pointer;
+}
+
+.dialog-actions button:last-child {
+  border-color: #b91c1c;
+  background: #b91c1c;
+  color: #ffffff;
+}
+
+.dialog-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .owner-calendar {
   margin-top: 32px;
   padding: 20px;
