@@ -1,0 +1,9 @@
+.git
+.github
+.idea
+.agents
+.kimi-out
+api/node_modules
+backend/target
+frontend/node_modules
+frontend/dist

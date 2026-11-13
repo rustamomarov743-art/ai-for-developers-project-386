@@ -20,6 +20,7 @@
 - `mise run api-generate` — генерация OpenAPI и клиентского SDK.
 - `mise run backend` — запуск backend на порту 8080.
 - `mise run frontend` — установка зависимостей и запуск frontend.
+- `mise run docker` — сборка Docker-образа и запуск приложения на `$PORT` (по умолчанию 8080).
 - `mise run check` — все проверки; обязательна перед завершением изменений.
 - `mise run backend-format` — форматирование Java через Spotless.
 
