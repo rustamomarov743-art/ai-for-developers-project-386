@@ -83,3 +83,44 @@ op listMeetingTypes(): MeetingType[] | InternalErrorResponse;
 op createMeetingType(
   @body request: CreateMeetingTypeRequest,
 ): CreateMeetingTypeResponse | BadRequestResponse | ConflictResponse | InternalErrorResponse;
+
+model TimeInterval {
+  @pattern("^([01][0-9]|2[0-3]):[0-5][0-9]$")
+  start: string;
+
+  @pattern("^([01][0-9]|2[0-3]):[0-5][0-9]$")
+  end: string;
+}
+
+model WeeklyTemplate {
+  MONDAY: TimeInterval[];
+  TUESDAY: TimeInterval[];
+  WEDNESDAY: TimeInterval[];
+  THURSDAY: TimeInterval[];
+  FRIDAY: TimeInterval[];
+  SATURDAY: TimeInterval[];
+  SUNDAY: TimeInterval[];
+}
+
+model Availability {
+  exists: boolean;
+  timeZone?: string;
+  version?: int32;
+  weeklyTemplate?: WeeklyTemplate;
+}
+
+model ReplaceAvailabilityRequest {
+  timeZone: string;
+  expectedVersion: int32 | null;
+  weeklyTemplate: WeeklyTemplate;
+}
+
+@route("/api/owner/availability")
+@get
+op getAvailability(): Availability | InternalErrorResponse;
+
+@route("/api/owner/availability")
+@put
+op replaceAvailability(
+  @body request: ReplaceAvailabilityRequest,
+): Availability | BadRequestResponse | ConflictResponse | InternalErrorResponse;

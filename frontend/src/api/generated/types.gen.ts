@@ -9,6 +9,13 @@ export type ApiFieldError = {
     message: string;
 };
 
+export type Availability = {
+    exists: boolean;
+    timeZone?: string;
+    version?: number;
+    weeklyTemplate?: WeeklyTemplate;
+};
+
 export type CreateMeetingTypeRequest = {
     name: string;
     description: string;
@@ -37,6 +44,27 @@ export type ProblemDetails = {
     errors?: Array<ApiFieldError>;
 };
 
+export type ReplaceAvailabilityRequest = {
+    timeZone: string;
+    expectedVersion: number | null;
+    weeklyTemplate: WeeklyTemplate;
+};
+
+export type TimeInterval = {
+    start: string;
+    end: string;
+};
+
+export type WeeklyTemplate = {
+    MONDAY: Array<TimeInterval>;
+    TUESDAY: Array<TimeInterval>;
+    WEDNESDAY: Array<TimeInterval>;
+    THURSDAY: Array<TimeInterval>;
+    FRIDAY: Array<TimeInterval>;
+    SATURDAY: Array<TimeInterval>;
+    SUNDAY: Array<TimeInterval>;
+};
+
 export type GetHealthData = {
     body?: never;
     path?: never;
@@ -52,6 +80,64 @@ export type GetHealthResponses = {
 };
 
 export type GetHealthResponse = GetHealthResponses[keyof GetHealthResponses];
+
+export type GetAvailabilityData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/owner/availability';
+};
+
+export type GetAvailabilityErrors = {
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type GetAvailabilityError = GetAvailabilityErrors[keyof GetAvailabilityErrors];
+
+export type GetAvailabilityResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Availability;
+};
+
+export type GetAvailabilityResponse = GetAvailabilityResponses[keyof GetAvailabilityResponses];
+
+export type ReplaceAvailabilityData = {
+    body: ReplaceAvailabilityRequest;
+    path?: never;
+    query?: never;
+    url: '/api/owner/availability';
+};
+
+export type ReplaceAvailabilityErrors = {
+    /**
+     * The server could not understand the request due to invalid syntax.
+     */
+    400: ProblemDetails;
+    /**
+     * The request conflicts with the current state of the server.
+     */
+    409: ProblemDetails;
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type ReplaceAvailabilityError = ReplaceAvailabilityErrors[keyof ReplaceAvailabilityErrors];
+
+export type ReplaceAvailabilityResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Availability;
+};
+
+export type ReplaceAvailabilityResponse = ReplaceAvailabilityResponses[keyof ReplaceAvailabilityResponses];
 
 export type ListMeetingTypesData = {
     body?: never;
