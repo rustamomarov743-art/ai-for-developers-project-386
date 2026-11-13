@@ -38,6 +38,12 @@ class ApiExceptionHandler {
         java.util.List.of(new ApiFieldError("name", "Название должно быть уникальным")));
   }
 
+  @ExceptionHandler(MeetingTypeNotFoundException.class)
+  ResponseEntity<ProblemDetails> handleMeetingTypeNotFound(HttpServletRequest request) {
+    return problem(
+        HttpStatus.NOT_FOUND, "MEETING_TYPE_NOT_FOUND", "Тип встречи не найден", request, null);
+  }
+
   @ExceptionHandler(AvailabilityVersionConflictException.class)
   ResponseEntity<ProblemDetails> handleAvailabilityVersionConflict(HttpServletRequest request) {
     return problem(

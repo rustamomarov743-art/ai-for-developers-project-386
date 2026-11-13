@@ -63,6 +63,12 @@ model ConflictResponse {
   @body problem: ProblemDetails;
 }
 
+model NotFoundResponse {
+  @statusCode statusCode: 404;
+  @header contentType: "application/problem+json";
+  @body problem: ProblemDetails;
+}
+
 model InternalErrorResponse {
   @statusCode statusCode: 500;
   @header contentType: "application/problem+json";
@@ -137,3 +143,43 @@ op getAvailability(): Availability | InternalErrorResponse;
 op replaceAvailability(
   @body request: ReplaceAvailabilityRequest,
 ): Availability | BadRequestResponse | ConflictResponse | InternalErrorResponse;
+
+enum BookingSlotStatus {
+  AVAILABLE,
+  TOO_SOON,
+}
+
+model BookingSlot {
+  startsAt: utcDateTime;
+  endsAt: utcDateTime;
+  status: BookingSlotStatus;
+}
+
+model BusyInterval {
+  startsAt: utcDateTime;
+  endsAt: utcDateTime;
+}
+
+model BookingDayAvailability {
+  date: plainDate;
+  hasAvailableSlots: boolean;
+  slots: BookingSlot[];
+  busyIntervals: BusyInterval[];
+}
+
+model BookingAvailability {
+  days: BookingDayAvailability[];
+}
+
+@route("/api/booking/meeting-types")
+@get
+op listBookingMeetingTypes(
+  @query timeZone: string,
+): MeetingType[] | BadRequestResponse | InternalErrorResponse;
+
+@route("/api/booking/meeting-types/{id}/availability")
+@get
+op getBookingAvailability(
+  @path id: string,
+  @query timeZone: string,
+): BookingAvailability | BadRequestResponse | NotFoundResponse | InternalErrorResponse;

@@ -25,6 +25,30 @@ export type AvailabilityException = {
 
 export type AvailabilityExceptionType = 'CLOSED' | 'CUSTOM';
 
+export type BookingAvailability = {
+    days: Array<BookingDayAvailability>;
+};
+
+export type BookingDayAvailability = {
+    date: string;
+    hasAvailableSlots: boolean;
+    slots: Array<BookingSlot>;
+    busyIntervals: Array<BusyInterval>;
+};
+
+export type BookingSlot = {
+    startsAt: string;
+    endsAt: string;
+    status: BookingSlotStatus;
+};
+
+export type BookingSlotStatus = 'AVAILABLE' | 'TOO_SOON';
+
+export type BusyInterval = {
+    startsAt: string;
+    endsAt: string;
+};
+
 export type CreateMeetingTypeRequest = {
     name: string;
     description: string;
@@ -74,6 +98,74 @@ export type WeeklyTemplate = {
     SATURDAY: Array<TimeInterval>;
     SUNDAY: Array<TimeInterval>;
 };
+
+export type ListBookingMeetingTypesData = {
+    body?: never;
+    path?: never;
+    query: {
+        timeZone: string;
+    };
+    url: '/api/booking/meeting-types';
+};
+
+export type ListBookingMeetingTypesErrors = {
+    /**
+     * The server could not understand the request due to invalid syntax.
+     */
+    400: ProblemDetails;
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type ListBookingMeetingTypesError = ListBookingMeetingTypesErrors[keyof ListBookingMeetingTypesErrors];
+
+export type ListBookingMeetingTypesResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Array<MeetingType>;
+};
+
+export type ListBookingMeetingTypesResponse = ListBookingMeetingTypesResponses[keyof ListBookingMeetingTypesResponses];
+
+export type GetBookingAvailabilityData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query: {
+        timeZone: string;
+    };
+    url: '/api/booking/meeting-types/{id}/availability';
+};
+
+export type GetBookingAvailabilityErrors = {
+    /**
+     * The server could not understand the request due to invalid syntax.
+     */
+    400: ProblemDetails;
+    /**
+     * The server cannot find the requested resource.
+     */
+    404: ProblemDetails;
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type GetBookingAvailabilityError = GetBookingAvailabilityErrors[keyof GetBookingAvailabilityErrors];
+
+export type GetBookingAvailabilityResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: BookingAvailability;
+};
+
+export type GetBookingAvailabilityResponse = GetBookingAvailabilityResponses[keyof GetBookingAvailabilityResponses];
 
 export type GetHealthData = {
     body?: never;

@@ -17,12 +17,14 @@ class InMemoryCalendarStore {
       List.of("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY");
 
   private final Clock clock;
+  private final SlotCalculator slotCalculator;
   private final List<StoredMeetingType> meetingTypes = new ArrayList<>();
   private Availability availability;
   private long nextSequence;
 
-  InMemoryCalendarStore(Clock clock) {
+  InMemoryCalendarStore(Clock clock, SlotCalculator slotCalculator) {
     this.clock = clock;
+    this.slotCalculator = slotCalculator;
   }
 
   synchronized MeetingType createMeetingType(CreateMeetingTypeRequest request) {
@@ -339,6 +341,42 @@ class InMemoryCalendarStore {
                 .thenComparingLong(StoredMeetingType::sequence))
         .map(StoredMeetingType::meetingType)
         .toList();
+  }
+
+  synchronized List<MeetingType> publicMeetingTypes(String timeZone) {
+    var guestZone = guestZone(timeZone);
+    if (availability == null) {
+      return List.of();
+    }
+    return meetingTypes().stream()
+        .filter(meetingType ->
+            slotCalculator
+                .calculate(meetingType, availability, guestZone, List.of())
+                .hasAvailableSlots())
+        .toList();
+  }
+
+  synchronized BookingAvailability bookingAvailability(String id, String timeZone) {
+    var guestZone = guestZone(timeZone);
+    var meetingType =
+        meetingTypes().stream()
+            .filter(candidate -> candidate.id().equals(id))
+            .findFirst()
+            .orElseThrow(MeetingTypeNotFoundException::new);
+    return slotCalculator.calculate(meetingType, availability, guestZone, List.of());
+  }
+
+  private ZoneId guestZone(String timeZone) {
+    if (timeZone == null || timeZone.isBlank()) {
+      throw new RequestValidationException(
+          List.of(new ApiFieldError("timeZone", "Часовой пояс обязателен")));
+    }
+    try {
+      return ZoneId.of(timeZone.trim());
+    } catch (RuntimeException exception) {
+      throw new RequestValidationException(
+          List.of(new ApiFieldError("timeZone", "Укажите корректный IANA-часовой пояс")));
+    }
   }
 
   private record StoredMeetingType(MeetingType meetingType, long sequence) {}

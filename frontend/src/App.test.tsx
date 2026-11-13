@@ -5,11 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createMeetingType,
   getAvailability,
+  getBookingAvailability,
+  listBookingMeetingTypes,
   listMeetingTypes,
   replaceAvailability,
 } from './api/generated/sdk.gen'
 import type {
   Availability,
+  BookingAvailability,
   MeetingType,
   WeeklyTemplate,
 } from './api/generated/types.gen'
@@ -18,6 +21,8 @@ import App from './App'
 vi.mock('./api/generated/sdk.gen', () => ({
   createMeetingType: vi.fn(),
   getAvailability: vi.fn(),
+  getBookingAvailability: vi.fn(),
+  listBookingMeetingTypes: vi.fn(),
   listMeetingTypes: vi.fn(),
   replaceAvailability: vi.fn(),
 }))
@@ -26,11 +31,19 @@ const listMeetingTypesMock = vi.mocked(listMeetingTypes)
 const createMeetingTypeMock = vi.mocked(createMeetingType)
 const getAvailabilityMock = vi.mocked(getAvailability)
 const replaceAvailabilityMock = vi.mocked(replaceAvailability)
+const listBookingMeetingTypesMock = vi.mocked(listBookingMeetingTypes)
+const getBookingAvailabilityMock = vi.mocked(getBookingAvailability)
 const meetingTypesRequest = new Request(
   'http://localhost:8080/api/owner/meeting-types',
 )
 const availabilityRequest = new Request(
   'http://localhost:8080/api/owner/availability',
+)
+const bookingTypesRequest = new Request(
+  'http://localhost:8080/api/booking/meeting-types?timeZone=UTC',
+)
+const bookingAvailabilityRequest = new Request(
+  'http://localhost:8080/api/booking/meeting-types/type-1/availability?timeZone=UTC',
 )
 const emptyWeeklyTemplate: WeeklyTemplate = {
   MONDAY: [],
@@ -47,6 +60,18 @@ beforeEach(() => {
   createMeetingTypeMock.mockReset()
   getAvailabilityMock.mockReset()
   replaceAvailabilityMock.mockReset()
+  listBookingMeetingTypesMock.mockReset()
+  getBookingAvailabilityMock.mockReset()
+  listBookingMeetingTypesMock.mockResolvedValue({
+    data: [],
+    request: bookingTypesRequest,
+    response: new Response(null, { status: 200 }),
+  })
+  getBookingAvailabilityMock.mockResolvedValue({
+    data: { days: [] },
+    request: bookingAvailabilityRequest,
+    response: new Response(null, { status: 200 }),
+  })
   getAvailabilityMock.mockResolvedValue({
     data: { exists: false },
     request: availabilityRequest,
@@ -69,6 +94,36 @@ function renderApp(initialEntry = '/') {
       <App />
     </MemoryRouter>,
   )
+}
+
+function bookingType(id: string, name: string): MeetingType {
+  return {
+    id,
+    name,
+    description: `Описание: ${name}`,
+    durationMinutes: 45,
+    createdAt: '2026-11-13T09:00:00Z',
+  }
+}
+
+function bookingAvailability(): BookingAvailability {
+  return {
+    days: Array.from({ length: 14 }, (_, index) => ({
+      date: `2026-11-${String(index + 13).padStart(2, '0')}`,
+      hasAvailableSlots: index >= 2,
+      slots:
+        index >= 2
+          ? [
+              {
+                startsAt: `2026-11-${String(index + 13).padStart(2, '0')}T10:00:00Z`,
+                endsAt: `2026-11-${String(index + 13).padStart(2, '0')}T10:45:00Z`,
+                status: 'AVAILABLE',
+              },
+            ]
+          : [],
+      busyIntervals: [],
+    })),
+  }
 }
 
 describe('Главная страница', () => {
@@ -924,28 +979,24 @@ describe('Доступность владельца', () => {
   })
 })
 
-describe('Страницы-заглушки', () => {
-  it.each([
-    { path: '/owner', title: 'Страница владельца' },
-    { path: '/book', title: 'Бронирование встречи' },
-  ])(
-    'позволяет вернуться на главную со страницы $path',
-    async ({ path, title }) => {
-      const user = userEvent.setup()
-      renderApp(path)
+describe('Страница владельца', () => {
+  it('позволяет вернуться на главную', async () => {
+    const user = userEvent.setup()
+    renderApp('/owner')
 
-      expect(screen.getByRole('heading', { name: title })).toBeInTheDocument()
-      expect(screen.getByText('Раздел в разработке.')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Страница владельца' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Раздел в разработке.')).toBeInTheDocument()
 
-      await user.click(screen.getByRole('link', { name: 'На главную' }))
+    await user.click(screen.getByRole('link', { name: 'На главную' }))
 
-      expect(
-        await screen.findByRole('heading', {
-          name: 'Забронируйте встречу без регистрации',
-        }),
-      ).toBeInTheDocument()
-    },
-  )
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Забронируйте встречу без регистрации',
+      }),
+    ).toBeInTheDocument()
+  })
 })
 
 describe('Неизвестный адрес', () => {
@@ -964,5 +1015,156 @@ describe('Неизвестный адрес', () => {
         name: 'Забронируйте встречу без регистрации',
       }),
     ).toBeInTheDocument()
+  })
+})
+
+
+describe('Гостевой выбор встречи', () => {
+  it('различает загрузку и отсутствие доступных встреч', async () => {
+    renderApp('/book')
+
+    expect(screen.getByText('Загрузка…')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Нет доступных встреч для бронирования'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
+  })
+
+  it('выбирает ближайший день и слот, сбрасывает выбор и показывает занятое время', async () => {
+    const user = userEvent.setup()
+    const types = [bookingType('type-1', 'Консультация'), bookingType('type-2', 'Разбор')]
+    const availability = bookingAvailability()
+    availability.days[2].slots.push({
+      startsAt: '2026-11-15T11:00:00Z',
+      endsAt: '2026-11-15T11:45:00Z',
+      status: 'TOO_SOON',
+    })
+    availability.days[2].busyIntervals.push({
+      startsAt: '2026-11-15T12:00:00Z',
+      endsAt: '2026-11-15T13:00:00Z',
+    })
+    listBookingMeetingTypesMock.mockResolvedValue({
+      data: types,
+      request: bookingTypesRequest,
+      response: new Response(null, { status: 200 }),
+    })
+    getBookingAvailabilityMock.mockResolvedValue({
+      data: availability,
+      request: bookingAvailabilityRequest,
+      response: new Response(null, { status: 200 }),
+    })
+    renderApp('/book')
+
+    await user.click(await screen.findByRole('button', { name: /Консультация/ }))
+
+    expect(await screen.findAllByRole('button', { name: /2026/ })).toHaveLength(14)
+    expect(screen.getByRole('button', { name: /13 ноября 2026/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /15 ноября 2026/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByText(/Часовой пояс:/)).toBeInTheDocument()
+    expect(screen.getByText(/Занято:/)).toBeInTheDocument()
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    const slotTime = new Intl.DateTimeFormat('ru-RU', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone,
+    }).format(new Date('2026-11-15T10:00:00Z'))
+    const availableSlot = screen.getByRole('button', { name: slotTime })
+    await user.click(availableSlot)
+    expect(availableSlot).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText(/Выбрано:/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /16 ноября 2026/ }))
+    expect(screen.queryByText(/Выбрано:/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /16 ноября 2026/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Выбрать другой тип' }))
+    await user.click(screen.getByRole('button', { name: /Разбор/ }))
+    expect(await screen.findAllByRole('button', { name: /2026/ })).toHaveLength(14)
+    expect(screen.queryByText(/Выбрано:/)).not.toBeInTheDocument()
+    expect(getBookingAvailabilityMock).toHaveBeenCalledTimes(2)
+    expect(getBookingAvailabilityMock).toHaveBeenLastCalledWith({
+      path: { id: 'type-2' },
+      query: { timeZone },
+    })
+  }, 15_000)
+
+  it('повторяет неудачную загрузку типов', async () => {
+    const user = userEvent.setup()
+    listBookingMeetingTypesMock.mockRejectedValueOnce(new Error('network'))
+    listBookingMeetingTypesMock.mockResolvedValueOnce({
+      data: [bookingType('type-1', 'Консультация')],
+      request: bookingTypesRequest,
+      response: new Response(null, { status: 200 }),
+    })
+    renderApp('/book')
+
+    expect(
+      await screen.findByText('Не удалось загрузить доступные встречи'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Нет доступных встреч для бронирования')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Повторить' }))
+
+    expect(await screen.findByRole('button', { name: /Консультация/ })).toBeInTheDocument()
+    expect(listBookingMeetingTypesMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('повторяет неудачную загрузку доступности без потери выбранного типа', async () => {
+    const user = userEvent.setup()
+    listBookingMeetingTypesMock.mockResolvedValue({
+      data: [bookingType('type-1', 'Консультация')],
+      request: bookingTypesRequest,
+      response: new Response(null, { status: 200 }),
+    })
+    getBookingAvailabilityMock.mockRejectedValueOnce(new Error('network'))
+    getBookingAvailabilityMock.mockResolvedValueOnce({
+      data: bookingAvailability(),
+      request: bookingAvailabilityRequest,
+      response: new Response(null, { status: 200 }),
+    })
+    renderApp('/book')
+
+    await user.click(await screen.findByRole('button', { name: /Консультация/ }))
+    expect(await screen.findByText('Не удалось загрузить доступность')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Повторить' }))
+
+    expect(await screen.findAllByRole('button', { name: /2026/ })).toHaveLength(14)
+    expect(screen.getByRole('heading', { name: 'Консультация' })).toBeInTheDocument()
+    expect(getBookingAvailabilityMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('показывает все дни заблокированными, если свободных слотов не осталось', async () => {
+    const user = userEvent.setup()
+    const availability = bookingAvailability()
+    availability.days = availability.days.map((day) => ({
+      ...day,
+      hasAvailableSlots: false,
+      slots: [],
+    }))
+    listBookingMeetingTypesMock.mockResolvedValue({
+      data: [bookingType('type-1', 'Консультация')],
+      request: bookingTypesRequest,
+      response: new Response(null, { status: 200 }),
+    })
+    getBookingAvailabilityMock.mockResolvedValue({
+      data: availability,
+      request: bookingAvailabilityRequest,
+      response: new Response(null, { status: 200 }),
+    })
+    renderApp('/book')
+
+    await user.click(await screen.findByRole('button', { name: /Консультация/ }))
+
+    expect(
+      await screen.findByText('Для этой встречи нет свободных слотов'),
+    ).toBeInTheDocument()
+    const dates = screen.getAllByRole('button', { name: /2026/ })
+    expect(dates).toHaveLength(14)
+    dates.forEach((date) => expect(date).toBeDisabled())
   })
 })
