@@ -4,9 +4,236 @@ export type ClientOptions = {
     baseUrl: 'http://localhost:8080' | (string & {});
 };
 
+export type ApiFieldError = {
+    path: string;
+    message: string;
+};
+
+export type Availability = {
+    exists: boolean;
+    timeZone?: string;
+    version?: number;
+    weeklyTemplate?: WeeklyTemplate;
+    exceptions?: Array<AvailabilityException>;
+};
+
+export type AvailabilityException = {
+    date: string;
+    type: AvailabilityExceptionType;
+    intervals: Array<TimeInterval>;
+};
+
+export type AvailabilityExceptionType = 'CLOSED' | 'CUSTOM';
+
+export type BookingAvailability = {
+    days: Array<BookingDayAvailability>;
+};
+
+export type BookingDayAvailability = {
+    date: string;
+    hasAvailableSlots: boolean;
+    slots: Array<BookingSlot>;
+    busyIntervals: Array<BusyInterval>;
+};
+
+export type BookingSlot = {
+    startsAt: string;
+    endsAt: string;
+    status: BookingSlotStatus;
+};
+
+export type BookingSlotStatus = 'AVAILABLE' | 'TOO_SOON';
+
+export type BusyInterval = {
+    startsAt: string;
+    endsAt: string;
+};
+
+export type CreateBookingRequest = {
+    meetingTypeId: string;
+    startsAt: string;
+    guestName: string;
+    guestEmail: string;
+};
+
+export type CreateMeetingTypeRequest = {
+    name: string;
+    description: string;
+    durationMinutes: number;
+};
+
 export type HealthResponse = {
     status: string;
 };
+
+export type Meeting = {
+    id: string;
+    meetingTypeId: string;
+    startsAt: string;
+    endsAt: string;
+    guestName: string;
+    guestEmail: string;
+    createdAt: string;
+    status: MeetingStatus;
+    meetingType: MeetingType;
+};
+
+export type MeetingStatus = 'SCHEDULED' | 'CANCELLED';
+
+export type MeetingType = {
+    id: string;
+    name: string;
+    description: string;
+    durationMinutes: number;
+    createdAt: string;
+};
+
+export type OwnerMeeting = {
+    id: string;
+    meetingTypeId: string;
+    startsAt: string;
+    endsAt: string;
+    guestName: string;
+    guestEmail: string;
+    createdAt: string;
+    status: MeetingStatus;
+    meetingType: MeetingType;
+    durationMinutes: number;
+    inProgress: boolean;
+};
+
+export type ProblemDetails = {
+    type: string;
+    title: string;
+    status: number;
+    detail: string;
+    instance: string;
+    code: string;
+    errors?: Array<ApiFieldError>;
+};
+
+export type ReplaceAvailabilityRequest = {
+    timeZone: string;
+    expectedVersion: number | null;
+    weeklyTemplate: WeeklyTemplate;
+    exceptions: Array<AvailabilityException>;
+};
+
+export type TimeInterval = {
+    start: string;
+    end: string;
+};
+
+export type WeeklyTemplate = {
+    MONDAY: Array<TimeInterval>;
+    TUESDAY: Array<TimeInterval>;
+    WEDNESDAY: Array<TimeInterval>;
+    THURSDAY: Array<TimeInterval>;
+    FRIDAY: Array<TimeInterval>;
+    SATURDAY: Array<TimeInterval>;
+    SUNDAY: Array<TimeInterval>;
+};
+
+export type CreateBookingData = {
+    body: CreateBookingRequest;
+    path?: never;
+    query?: never;
+    url: '/api/booking/bookings';
+};
+
+export type CreateBookingErrors = {
+    /**
+     * The server could not understand the request due to invalid syntax.
+     */
+    400: ProblemDetails;
+    /**
+     * The request conflicts with the current state of the server.
+     */
+    409: ProblemDetails;
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type CreateBookingError = CreateBookingErrors[keyof CreateBookingErrors];
+
+export type CreateBookingResponses = {
+    /**
+     * The request has succeeded and a new resource has been created as a result.
+     */
+    201: Meeting;
+};
+
+export type CreateBookingResponse = CreateBookingResponses[keyof CreateBookingResponses];
+
+export type ListBookingMeetingTypesData = {
+    body?: never;
+    path?: never;
+    query: {
+        timeZone: string;
+    };
+    url: '/api/booking/meeting-types';
+};
+
+export type ListBookingMeetingTypesErrors = {
+    /**
+     * The server could not understand the request due to invalid syntax.
+     */
+    400: ProblemDetails;
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type ListBookingMeetingTypesError = ListBookingMeetingTypesErrors[keyof ListBookingMeetingTypesErrors];
+
+export type ListBookingMeetingTypesResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Array<MeetingType>;
+};
+
+export type ListBookingMeetingTypesResponse = ListBookingMeetingTypesResponses[keyof ListBookingMeetingTypesResponses];
+
+export type GetBookingAvailabilityData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query: {
+        timeZone: string;
+    };
+    url: '/api/booking/meeting-types/{id}/availability';
+};
+
+export type GetBookingAvailabilityErrors = {
+    /**
+     * The server could not understand the request due to invalid syntax.
+     */
+    400: ProblemDetails;
+    /**
+     * The server cannot find the requested resource.
+     */
+    404: ProblemDetails;
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type GetBookingAvailabilityError = GetBookingAvailabilityErrors[keyof GetBookingAvailabilityErrors];
+
+export type GetBookingAvailabilityResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: BookingAvailability;
+};
+
+export type GetBookingAvailabilityResponse = GetBookingAvailabilityResponses[keyof GetBookingAvailabilityResponses];
 
 export type GetHealthData = {
     body?: never;
@@ -23,3 +250,179 @@ export type GetHealthResponses = {
 };
 
 export type GetHealthResponse = GetHealthResponses[keyof GetHealthResponses];
+
+export type GetAvailabilityData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/owner/availability';
+};
+
+export type GetAvailabilityErrors = {
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type GetAvailabilityError = GetAvailabilityErrors[keyof GetAvailabilityErrors];
+
+export type GetAvailabilityResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Availability;
+};
+
+export type GetAvailabilityResponse = GetAvailabilityResponses[keyof GetAvailabilityResponses];
+
+export type ReplaceAvailabilityData = {
+    body: ReplaceAvailabilityRequest;
+    path?: never;
+    query?: never;
+    url: '/api/owner/availability';
+};
+
+export type ReplaceAvailabilityErrors = {
+    /**
+     * The server could not understand the request due to invalid syntax.
+     */
+    400: ProblemDetails;
+    /**
+     * The request conflicts with the current state of the server.
+     */
+    409: ProblemDetails;
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type ReplaceAvailabilityError = ReplaceAvailabilityErrors[keyof ReplaceAvailabilityErrors];
+
+export type ReplaceAvailabilityResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Availability;
+};
+
+export type ReplaceAvailabilityResponse = ReplaceAvailabilityResponses[keyof ReplaceAvailabilityResponses];
+
+export type ListMeetingTypesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/owner/meeting-types';
+};
+
+export type ListMeetingTypesErrors = {
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type ListMeetingTypesError = ListMeetingTypesErrors[keyof ListMeetingTypesErrors];
+
+export type ListMeetingTypesResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Array<MeetingType>;
+};
+
+export type ListMeetingTypesResponse = ListMeetingTypesResponses[keyof ListMeetingTypesResponses];
+
+export type CreateMeetingTypeData = {
+    body: CreateMeetingTypeRequest;
+    path?: never;
+    query?: never;
+    url: '/api/owner/meeting-types';
+};
+
+export type CreateMeetingTypeErrors = {
+    /**
+     * The server could not understand the request due to invalid syntax.
+     */
+    400: ProblemDetails;
+    /**
+     * The request conflicts with the current state of the server.
+     */
+    409: ProblemDetails;
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type CreateMeetingTypeError = CreateMeetingTypeErrors[keyof CreateMeetingTypeErrors];
+
+export type CreateMeetingTypeResponses = {
+    /**
+     * The request has succeeded and a new resource has been created as a result.
+     */
+    201: MeetingType;
+};
+
+export type CreateMeetingTypeResponse = CreateMeetingTypeResponses[keyof CreateMeetingTypeResponses];
+
+export type ListOwnerMeetingsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/owner/meetings';
+};
+
+export type ListOwnerMeetingsErrors = {
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type ListOwnerMeetingsError = ListOwnerMeetingsErrors[keyof ListOwnerMeetingsErrors];
+
+export type ListOwnerMeetingsResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Array<OwnerMeeting>;
+};
+
+export type ListOwnerMeetingsResponse = ListOwnerMeetingsResponses[keyof ListOwnerMeetingsResponses];
+
+export type CancelMeetingData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/owner/meetings/{id}/cancellation';
+};
+
+export type CancelMeetingErrors = {
+    /**
+     * The server cannot find the requested resource.
+     */
+    404: ProblemDetails;
+    /**
+     * The request conflicts with the current state of the server.
+     */
+    409: ProblemDetails;
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type CancelMeetingError = CancelMeetingErrors[keyof CancelMeetingErrors];
+
+export type CancelMeetingResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Meeting;
+};
+
+export type CancelMeetingResponse = CancelMeetingResponses[keyof CancelMeetingResponses];

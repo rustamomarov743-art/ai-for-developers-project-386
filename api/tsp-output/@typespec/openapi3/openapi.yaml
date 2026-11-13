@@ -4,6 +4,112 @@ info:
   version: 0.0.0
 tags: []
 paths:
+  /api/booking/bookings:
+    post:
+      operationId: createBooking
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meeting'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: Server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBookingRequest'
+  /api/booking/meeting-types:
+    get:
+      operationId: listBookingMeetingTypes
+      parameters:
+        - name: timeZone
+          in: query
+          required: true
+          schema:
+            type: string
+          explode: false
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MeetingType'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: Server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  /api/booking/meeting-types/{id}/availability:
+    get:
+      operationId: getBookingAvailability
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: timeZone
+          in: query
+          required: true
+          schema:
+            type: string
+          explode: false
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingAvailability'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: Server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   /api/health:
     get:
       operationId: getHealth
@@ -15,8 +121,317 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+  /api/owner/availability:
+    get:
+      operationId: getAvailability
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Availability'
+        '500':
+          description: Server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+    put:
+      operationId: replaceAvailability
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Availability'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: Server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplaceAvailabilityRequest'
+  /api/owner/meeting-types:
+    get:
+      operationId: listMeetingTypes
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MeetingType'
+        '500':
+          description: Server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+    post:
+      operationId: createMeetingType
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeetingType'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: Server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMeetingTypeRequest'
+  /api/owner/meetings:
+    get:
+      operationId: listOwnerMeetings
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OwnerMeeting'
+        '500':
+          description: Server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  /api/owner/meetings/{id}/cancellation:
+    post:
+      operationId: cancelMeeting
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meeting'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: Server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
 components:
   schemas:
+    ApiFieldError:
+      type: object
+      required:
+        - path
+        - message
+      properties:
+        path:
+          type: string
+        message:
+          type: string
+    Availability:
+      type: object
+      required:
+        - exists
+      properties:
+        exists:
+          type: boolean
+        timeZone:
+          type: string
+        version:
+          type: integer
+          format: int32
+        weeklyTemplate:
+          $ref: '#/components/schemas/WeeklyTemplate'
+        exceptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilityException'
+    AvailabilityException:
+      type: object
+      required:
+        - date
+        - type
+        - intervals
+      properties:
+        date:
+          type: string
+          format: date
+        type:
+          $ref: '#/components/schemas/AvailabilityExceptionType'
+        intervals:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+    AvailabilityExceptionType:
+      type: string
+      enum:
+        - CLOSED
+        - CUSTOM
+    BookingAvailability:
+      type: object
+      required:
+        - days
+      properties:
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingDayAvailability'
+    BookingDayAvailability:
+      type: object
+      required:
+        - date
+        - hasAvailableSlots
+        - slots
+        - busyIntervals
+      properties:
+        date:
+          type: string
+          format: date
+        hasAvailableSlots:
+          type: boolean
+        slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingSlot'
+        busyIntervals:
+          type: array
+          items:
+            $ref: '#/components/schemas/BusyInterval'
+    BookingSlot:
+      type: object
+      required:
+        - startsAt
+        - endsAt
+        - status
+      properties:
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/BookingSlotStatus'
+    BookingSlotStatus:
+      type: string
+      enum:
+        - AVAILABLE
+        - TOO_SOON
+    BusyInterval:
+      type: object
+      required:
+        - startsAt
+        - endsAt
+      properties:
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+    CreateBookingRequest:
+      type: object
+      required:
+        - meetingTypeId
+        - startsAt
+        - guestName
+        - guestEmail
+      properties:
+        meetingTypeId:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        guestName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        guestEmail:
+          type: string
+          minLength: 1
+          maxLength: 254
+    CreateMeetingTypeRequest:
+      type: object
+      required:
+        - name
+        - description
+        - durationMinutes
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        durationMinutes:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 1440
     HealthResponse:
       type: object
       required:
@@ -24,6 +439,205 @@ components:
       properties:
         status:
           type: string
+    Meeting:
+      type: object
+      required:
+        - id
+        - meetingTypeId
+        - startsAt
+        - endsAt
+        - guestName
+        - guestEmail
+        - createdAt
+        - status
+        - meetingType
+      properties:
+        id:
+          type: string
+        meetingTypeId:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        guestName:
+          type: string
+        guestEmail:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/MeetingStatus'
+        meetingType:
+          $ref: '#/components/schemas/MeetingType'
+    MeetingStatus:
+      type: string
+      enum:
+        - SCHEDULED
+        - CANCELLED
+    MeetingType:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - durationMinutes
+        - createdAt
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        durationMinutes:
+          type: integer
+          format: int32
+        createdAt:
+          type: string
+          format: date-time
+    OwnerMeeting:
+      type: object
+      required:
+        - id
+        - meetingTypeId
+        - startsAt
+        - endsAt
+        - guestName
+        - guestEmail
+        - createdAt
+        - status
+        - meetingType
+        - durationMinutes
+        - inProgress
+      properties:
+        id:
+          type: string
+        meetingTypeId:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        guestName:
+          type: string
+        guestEmail:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/MeetingStatus'
+        meetingType:
+          $ref: '#/components/schemas/MeetingType'
+        durationMinutes:
+          type: integer
+          format: int32
+        inProgress:
+          type: boolean
+    ProblemDetails:
+      type: object
+      required:
+        - type
+        - title
+        - status
+        - detail
+        - instance
+        - code
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        detail:
+          type: string
+        instance:
+          type: string
+        code:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiFieldError'
+    ReplaceAvailabilityRequest:
+      type: object
+      required:
+        - timeZone
+        - expectedVersion
+        - weeklyTemplate
+        - exceptions
+      properties:
+        timeZone:
+          type: string
+        expectedVersion:
+          type: integer
+          format: int32
+          nullable: true
+        weeklyTemplate:
+          $ref: '#/components/schemas/WeeklyTemplate'
+        exceptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilityException'
+    TimeInterval:
+      type: object
+      required:
+        - start
+        - end
+      properties:
+        start:
+          type: string
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+        end:
+          type: string
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+    WeeklyTemplate:
+      type: object
+      required:
+        - MONDAY
+        - TUESDAY
+        - WEDNESDAY
+        - THURSDAY
+        - FRIDAY
+        - SATURDAY
+        - SUNDAY
+      properties:
+        MONDAY:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+        TUESDAY:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+        WEDNESDAY:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+        THURSDAY:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+        FRIDAY:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+        SATURDAY:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+        SUNDAY:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
 servers:
   - url: http://localhost:8080
     description: Local development

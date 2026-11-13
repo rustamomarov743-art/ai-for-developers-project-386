@@ -13,3 +13,238 @@ model HealthResponse {
 @route("/api/health")
 @get
 op getHealth(): HealthResponse;
+
+model MeetingType {
+  id: string;
+  name: string;
+  description: string;
+  durationMinutes: int32;
+  createdAt: utcDateTime;
+}
+
+model CreateMeetingTypeRequest {
+  @minLength(1)
+  @maxLength(100)
+  name: string;
+
+  @minLength(1)
+  @maxLength(1000)
+  description: string;
+
+  @minValue(1)
+  @maxValue(1440)
+  durationMinutes: int32;
+}
+
+model ApiFieldError {
+  path: string;
+  message: string;
+}
+
+model ProblemDetails {
+  type: string;
+  title: string;
+  status: int32;
+  detail: string;
+  instance: string;
+  code: string;
+  errors?: ApiFieldError[];
+}
+
+model BadRequestResponse {
+  @statusCode statusCode: 400;
+  @header contentType: "application/problem+json";
+  @body problem: ProblemDetails;
+}
+
+model ConflictResponse {
+  @statusCode statusCode: 409;
+  @header contentType: "application/problem+json";
+  @body problem: ProblemDetails;
+}
+
+model NotFoundResponse {
+  @statusCode statusCode: 404;
+  @header contentType: "application/problem+json";
+  @body problem: ProblemDetails;
+}
+
+model InternalErrorResponse {
+  @statusCode statusCode: 500;
+  @header contentType: "application/problem+json";
+  @body problem: ProblemDetails;
+}
+
+model CreateMeetingTypeResponse {
+  @statusCode statusCode: 201;
+  @body meetingType: MeetingType;
+}
+
+@route("/api/owner/meeting-types")
+@get
+op listMeetingTypes(): MeetingType[] | InternalErrorResponse;
+
+@route("/api/owner/meeting-types")
+@post
+op createMeetingType(
+  @body request: CreateMeetingTypeRequest,
+): CreateMeetingTypeResponse | BadRequestResponse | ConflictResponse | InternalErrorResponse;
+
+model TimeInterval {
+  @pattern("^([01][0-9]|2[0-3]):[0-5][0-9]$")
+  start: string;
+
+  @pattern("^([01][0-9]|2[0-3]):[0-5][0-9]$")
+  end: string;
+}
+
+model WeeklyTemplate {
+  MONDAY: TimeInterval[];
+  TUESDAY: TimeInterval[];
+  WEDNESDAY: TimeInterval[];
+  THURSDAY: TimeInterval[];
+  FRIDAY: TimeInterval[];
+  SATURDAY: TimeInterval[];
+  SUNDAY: TimeInterval[];
+}
+
+enum AvailabilityExceptionType {
+  CLOSED,
+  CUSTOM,
+}
+
+model AvailabilityException {
+  date: plainDate;
+  type: AvailabilityExceptionType;
+  intervals: TimeInterval[];
+}
+
+model Availability {
+  exists: boolean;
+  timeZone?: string;
+  version?: int32;
+  weeklyTemplate?: WeeklyTemplate;
+  exceptions?: AvailabilityException[];
+}
+
+model ReplaceAvailabilityRequest {
+  timeZone: string;
+  expectedVersion: int32 | null;
+  weeklyTemplate: WeeklyTemplate;
+  exceptions: AvailabilityException[];
+}
+
+@route("/api/owner/availability")
+@get
+op getAvailability(): Availability | InternalErrorResponse;
+
+@route("/api/owner/availability")
+@put
+op replaceAvailability(
+  @body request: ReplaceAvailabilityRequest,
+): Availability | BadRequestResponse | ConflictResponse | InternalErrorResponse;
+
+enum BookingSlotStatus {
+  AVAILABLE,
+  TOO_SOON,
+}
+
+model BookingSlot {
+  startsAt: utcDateTime;
+  endsAt: utcDateTime;
+  status: BookingSlotStatus;
+}
+
+model BusyInterval {
+  startsAt: utcDateTime;
+  endsAt: utcDateTime;
+}
+
+model BookingDayAvailability {
+  date: plainDate;
+  hasAvailableSlots: boolean;
+  slots: BookingSlot[];
+  busyIntervals: BusyInterval[];
+}
+
+model BookingAvailability {
+  days: BookingDayAvailability[];
+}
+
+@route("/api/booking/meeting-types")
+@get
+op listBookingMeetingTypes(
+  @query timeZone: string,
+): MeetingType[] | BadRequestResponse | InternalErrorResponse;
+
+@route("/api/booking/meeting-types/{id}/availability")
+@get
+op getBookingAvailability(
+  @path id: string,
+  @query timeZone: string,
+): BookingAvailability | BadRequestResponse | NotFoundResponse | InternalErrorResponse;
+
+enum MeetingStatus {
+  SCHEDULED,
+  CANCELLED,
+}
+
+model Meeting {
+  id: string;
+  meetingTypeId: string;
+  startsAt: utcDateTime;
+  endsAt: utcDateTime;
+  guestName: string;
+  guestEmail: string;
+  createdAt: utcDateTime;
+  status: MeetingStatus;
+  meetingType: MeetingType;
+}
+
+model OwnerMeeting {
+  id: string;
+  meetingTypeId: string;
+  startsAt: utcDateTime;
+  endsAt: utcDateTime;
+  guestName: string;
+  guestEmail: string;
+  createdAt: utcDateTime;
+  status: MeetingStatus;
+  meetingType: MeetingType;
+  durationMinutes: int32;
+  inProgress: boolean;
+}
+
+@route("/api/owner/meetings")
+@get
+op listOwnerMeetings(): OwnerMeeting[] | InternalErrorResponse;
+
+@route("/api/owner/meetings/{id}/cancellation")
+@post
+op cancelMeeting(
+  @path id: string,
+): Meeting | NotFoundResponse | ConflictResponse | InternalErrorResponse;
+
+model CreateBookingRequest {
+  meetingTypeId: string;
+  startsAt: utcDateTime;
+
+  @minLength(1)
+  @maxLength(100)
+  guestName: string;
+
+  @minLength(1)
+  @maxLength(254)
+  guestEmail: string;
+}
+
+model CreateBookingResponse {
+  @statusCode statusCode: 201;
+  @body meeting: Meeting;
+}
+
+@route("/api/booking/bookings")
+@post
+op createBooking(
+  @body request: CreateBookingRequest,
+): CreateBookingResponse | BadRequestResponse | ConflictResponse | InternalErrorResponse;

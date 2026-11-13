@@ -1,5 +1,10 @@
 import { Link, Route, Routes } from 'react-router-dom'
 import './App.css'
+import AvailabilityPage from './AvailabilityPage'
+import BookingPage from './BookingPage'
+import MeetingTypesPage from './MeetingTypesPage'
+import OwnerLayout from './OwnerLayout'
+import OwnerMeetingsPage from './OwnerMeetingsPage'
 
 function HomePage() {
   return (
@@ -29,28 +34,16 @@ function HomePage() {
   )
 }
 
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <main className="simple-page">
-      <h1>{title}</h1>
-      <p>Раздел в разработке.</p>
-      <Link to="/">На главную</Link>
-    </main>
-  )
-}
-
 function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
-      <Route
-        path="/owner"
-        element={<PlaceholderPage title="Страница владельца" />}
-      />
-      <Route
-        path="/book"
-        element={<PlaceholderPage title="Бронирование встречи" />}
-      />
+      <Route path="/owner" element={<OwnerLayout />}>
+        <Route index element={<OwnerMeetingsPage />} />
+        <Route path="meeting-types" element={<MeetingTypesPage />} />
+        <Route path="availability" element={<AvailabilityPage />} />
+      </Route>
+      <Route path="/book" element={<BookingPage />} />
       <Route
         path="*"
         element={
