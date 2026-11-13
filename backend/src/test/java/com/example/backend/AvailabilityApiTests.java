@@ -2,13 +2,8 @@ package com.example.backend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
@@ -16,25 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
-import org.springframework.test.annotation.DirtiesContext;
-import tools.jackson.databind.ObjectMapper;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
-class AvailabilityApiTests {
-
-  @LocalServerPort private int port;
-
-  @Autowired private ObjectMapper objectMapper;
-  @Autowired private MutableClock clock;
-
-  private final HttpClient httpClient = HttpClient.newHttpClient();
+class AvailabilityApiTests extends CalendarApiTestBase {
 
   @Test
   void returnsNoAvailabilityBeforeFirstSave() throws Exception {
@@ -68,44 +46,6 @@ class AvailabilityApiTests {
     assertThat(loaded).isEqualTo(body);
   }
 
-  @TestConfiguration
-  static class MutableClockConfiguration {
-    @Bean
-    @Primary
-    MutableClock mutableClock() {
-      return new MutableClock(Instant.parse("2026-11-13T09:00:00Z"), ZoneOffset.UTC);
-    }
-  }
-
-  static class MutableClock extends Clock {
-    private Instant instant;
-    private final ZoneOffset zone;
-
-    MutableClock(Instant instant, ZoneOffset zone) {
-      this.instant = instant;
-      this.zone = zone;
-    }
-
-    void setInstant(Instant instant) {
-      this.instant = instant;
-    }
-
-    @Override
-    public ZoneOffset getZone() {
-      return zone;
-    }
-
-    @Override
-    public Clock withZone(java.time.ZoneId zone) {
-      return Clock.fixed(instant, zone);
-    }
-
-    @Override
-    public Instant instant() {
-      return instant;
-    }
-  }
-
   @Test
   void savesClosedAndCustomExceptionsInDateOrder() throws Exception {
     var response =
@@ -131,6 +71,30 @@ class AvailabilityApiTests {
     assertThat(exceptions.get(1).get("intervals").get(0).get("start").asText()).isEqualTo("11:03");
     assertThat(exceptions.get(1).get("intervals").get(1).get("start").asText()).isEqualTo("12:17");
     assertThat(objectMapper.readTree(getAvailability().body())).isEqualTo(body);
+  }
+
+  @Test
+  void rejectsDuplicateExceptionDatesAtomically() throws Exception {
+    var created =
+        putAvailability(
+            requestWithExceptions(
+                "[{\"date\":\"2099-12-01\",\"type\":\"CLOSED\",\"intervals\":[]}]"));
+    assertThat(created.statusCode()).isEqualTo(200);
+
+    var response =
+        putAvailability(
+            requestWithExceptions(
+                    "[{\"date\":\"2099-12-01\",\"type\":\"CLOSED\",\"intervals\":[]},"
+                        + "{\"date\":\"2099-12-01\",\"type\":\"CUSTOM\",\"intervals\":["
+                        + "{\"start\":\"11:00\",\"end\":\"12:00\"}]}]")
+                .replace("\"expectedVersion\":null", "\"expectedVersion\":1"));
+
+    assertThat(response.statusCode()).isEqualTo(400);
+    var problem = objectMapper.readTree(response.body());
+    assertThat(problem.get("code").asText()).isEqualTo("VALIDATION_ERROR");
+    assertThat(problem.get("errors").get(0).get("path").asText()).isEqualTo("exceptions[1].date");
+    assertThat(objectMapper.readTree(getAvailability().body()))
+        .isEqualTo(objectMapper.readTree(created.body()));
   }
 
   @Test
@@ -455,22 +419,11 @@ class AvailabilityApiTests {
   }
 
   private HttpResponse<String> getAvailability() throws Exception {
-    var request =
-        HttpRequest.newBuilder()
-            .uri(URI.create("http://localhost:" + port + "/api/owner/availability"))
-            .GET()
-            .build();
-    return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    return send("/api/owner/availability", "GET", null);
   }
 
   private HttpResponse<String> putAvailability(String body) throws Exception {
-    var request =
-        HttpRequest.newBuilder()
-            .uri(URI.create("http://localhost:" + port + "/api/owner/availability"))
-            .header("Content-Type", "application/json")
-            .PUT(HttpRequest.BodyPublishers.ofString(body))
-            .build();
-    return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    return send("/api/owner/availability", "PUT", body);
   }
 
   private static String emptyWeeklyTemplate() {

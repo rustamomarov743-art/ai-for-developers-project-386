@@ -2,13 +2,8 @@ package com.example.backend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -16,36 +11,17 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class MeetingTypeApiTests {
-
-  @LocalServerPort private int port;
-
-  @Autowired private ObjectMapper objectMapper;
-
-  private final HttpClient httpClient = HttpClient.newHttpClient();
+class MeetingTypeApiTests extends CalendarApiTestBase {
 
   @Test
   void createsMeetingTypeWithTrimmedFieldsAndUtcCreationTime() throws Exception {
-    var request =
-        HttpRequest.newBuilder()
-            .uri(URI.create("http://localhost:" + port + "/api/owner/meeting-types"))
-            .header("Content-Type", "application/json")
-            .POST(
-                HttpRequest.BodyPublishers.ofString(
-                    "{\"name\":\"  Консультация  \",\"description\":\"  Обсудим проект  \",\"durationMinutes\":37}"))
-            .build();
-
-    var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    var response =
+        send(
+            "/api/owner/meeting-types",
+            "POST",
+            "{\"name\":\"  Консультация  \",\"description\":\"  Обсудим проект  \",\"durationMinutes\":37}");
 
     assertThat(response.statusCode()).isEqualTo(201);
     assertThat(response.headers().firstValue("Content-Type"))
@@ -65,13 +41,7 @@ class MeetingTypeApiTests {
         "{\"name\":\"Первый тип для порядка\",\"description\":\"Описание\",\"durationMinutes\":15}");
     postMeetingType(
         "{\"name\":\"Второй тип для порядка\",\"description\":\"Описание\",\"durationMinutes\":45}");
-    var request =
-        HttpRequest.newBuilder()
-            .uri(URI.create("http://localhost:" + port + "/api/owner/meeting-types"))
-            .GET()
-            .build();
-
-    var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    var response = send("/api/owner/meeting-types", "GET", null);
 
     assertThat(response.statusCode()).isEqualTo(200);
     JsonNode body = objectMapper.readTree(response.body());
@@ -97,12 +67,7 @@ class MeetingTypeApiTests {
     assertThat(body.get("code").asText()).isEqualTo("MEETING_TYPE_NAME_CONFLICT");
     assertThat(body.get("errors").get(0).get("path").asText()).isEqualTo("name");
 
-    var listRequest =
-        HttpRequest.newBuilder()
-            .uri(URI.create("http://localhost:" + port + "/api/owner/meeting-types"))
-            .GET()
-            .build();
-    var listResponse = httpClient.send(listRequest, HttpResponse.BodyHandlers.ofString());
+    var listResponse = send("/api/owner/meeting-types", "GET", null);
     var matchingNames = new ArrayList<String>();
     objectMapper
         .readTree(listResponse.body())
@@ -182,22 +147,6 @@ class MeetingTypeApiTests {
   }
 
   private HttpResponse<String> postMeetingType(String body) throws Exception {
-    var request =
-        HttpRequest.newBuilder()
-            .uri(URI.create("http://localhost:" + port + "/api/owner/meeting-types"))
-            .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(body))
-            .build();
-    return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-  }
-
-  @TestConfiguration(proxyBeanMethods = false)
-  static class FixedClockConfiguration {
-
-    @Bean
-    @Primary
-    Clock fixedClock() {
-      return Clock.fixed(Instant.parse("2026-11-13T09:00:00Z"), ZoneOffset.UTC);
-    }
+    return send("/api/owner/meeting-types", "POST", body);
   }
 }

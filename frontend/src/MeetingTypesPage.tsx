@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   createMeetingType,
   listMeetingTypes,
 } from './api/generated/sdk.gen'
 import type { MeetingType } from './api/generated/types.gen'
+import { useApiRequest } from './useApiRequest'
 
 function MeetingTypesPage() {
   const [meetingTypes, setMeetingTypes] = useState<MeetingType[]>([])
@@ -19,30 +20,16 @@ function MeetingTypesPage() {
   const [createFailed, setCreateFailed] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
-  useEffect(() => {
-    let active = true
-
-    listMeetingTypes()
-      .then(({ data, response }) => {
-        if (!active) return
-        if (response.ok && data) {
-          setMeetingTypes(data)
-          setLoading(false)
-        } else {
-          setLoadFailed(true)
-          setLoading(false)
-        }
-      })
-      .catch(() => {
-        if (!active) return
-        setLoadFailed(true)
-        setLoading(false)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [loadAttempt])
+  const request = useCallback(() => listMeetingTypes(), [])
+  const handleSuccess = useCallback((data: MeetingType[]) => {
+    setMeetingTypes(data)
+    setLoading(false)
+  }, [])
+  const handleFailure = useCallback(() => {
+    setLoadFailed(true)
+    setLoading(false)
+  }, [])
+  useApiRequest(loadAttempt, request, handleSuccess, handleFailure)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

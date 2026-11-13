@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useBlocker } from 'react-router-dom'
+import { useApiRequest } from './useApiRequest'
 import {
   getAvailability,
   replaceAvailability,
@@ -8,6 +10,7 @@ import type {
   Availability,
   AvailabilityException,
   AvailabilityExceptionType,
+  TimeInterval,
   WeeklyTemplate,
 } from './api/generated/types.gen'
 
@@ -79,6 +82,39 @@ function isValidDate(value: string) {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }
 
+const timePattern = /^([01][0-9]|2[0-3]):[0-5][0-9]$/
+
+function validateIntervals(
+  intervals: TimeInterval[],
+  path: string,
+  errors: Record<string, string>,
+) {
+  intervals.forEach((interval, index) => {
+    if (!timePattern.test(interval.start)) {
+      errors[`${path}[${index}].start`] = 'Формат времени — HH:mm'
+    }
+    if (!timePattern.test(interval.end)) {
+      errors[`${path}[${index}].end`] = 'Формат времени — HH:mm'
+    } else if (
+      timePattern.test(interval.start) &&
+      interval.start >= interval.end
+    ) {
+      errors[`${path}[${index}].end`] = 'Окончание должно быть позже начала'
+    }
+  })
+  const sorted = intervals
+    .filter(
+      (interval) =>
+        timePattern.test(interval.start) && timePattern.test(interval.end),
+    )
+    .sort((first, second) => first.start.localeCompare(second.start))
+  for (let index = 1; index < sorted.length; index += 1) {
+    if (sorted[index - 1].end > sorted[index].start) {
+      errors[path] = 'Интервалы не должны пересекаться'
+    }
+  }
+}
+
 function validateDraft(draft: AvailabilityDraft) {
   const errors: Record<string, string> = {}
   try {
@@ -86,78 +122,36 @@ function validateDraft(draft: AvailabilityDraft) {
   } catch {
     errors.timeZone = 'Укажите корректный IANA-часовой пояс'
   }
-  const timePattern = /^([01][0-9]|2[0-3]):[0-5][0-9]$/
   for (const day of days) {
-    const intervals = draft.weeklyTemplate[day.key]
-    intervals.forEach((interval, index) => {
-      if (!timePattern.test(interval.start)) {
-        errors[`weeklyTemplate.${day.key}[${index}].start`] =
-          'Формат времени — HH:mm'
-      }
-      if (!timePattern.test(interval.end)) {
-        errors[`weeklyTemplate.${day.key}[${index}].end`] =
-          'Формат времени — HH:mm'
-      } else if (
-        timePattern.test(interval.start) &&
-        interval.start >= interval.end
-      ) {
-        errors[`weeklyTemplate.${day.key}[${index}].end`] =
-          'Окончание должно быть позже начала'
-      }
-    })
-    const sorted = intervals
-      .filter(
-        (interval) =>
-          timePattern.test(interval.start) && timePattern.test(interval.end),
-      )
-      .sort((first, second) => first.start.localeCompare(second.start))
-    for (let index = 1; index < sorted.length; index += 1) {
-      if (sorted[index - 1].end > sorted[index].start) {
-        errors[`weeklyTemplate.${day.key}`] = 'Интервалы не должны пересекаться'
-      }
-    }
+    validateIntervals(
+      draft.weeklyTemplate[day.key],
+      `weeklyTemplate.${day.key}`,
+      errors,
+    )
   }
   const today = todayInTimeZone(draft.timeZone)
+  const exceptionDates = new Set<string>()
   draft.exceptions.forEach((exception, exceptionIndex) => {
     const path = `exceptions[${exceptionIndex}]`
     if (!isValidDate(exception.date)) {
       errors[`${path}.date`] = 'Укажите дату в формате ГГГГ-ММ-ДД'
-    } else if (exception.date < today) {
-      errors[`${path}.date`] = 'Дата исключения не может быть в прошлом'
+    } else {
+      if (exceptionDates.has(exception.date)) {
+        errors[`${path}.date`] = 'Исключение для этой даты уже добавлено'
+      } else {
+        exceptionDates.add(exception.date)
+        if (exception.date < today) {
+          errors[`${path}.date`] = 'Дата исключения не может быть в прошлом'
+        }
+      }
     }
     if (exception.type === 'CLOSED' && exception.intervals.length > 0) {
       errors[`${path}.intervals`] = 'Закрытый день не содержит интервалов'
     }
     if (exception.type === 'CUSTOM' && exception.intervals.length === 0) {
-      errors[`${path}.intervals`] = 'Особый день требует хотя бы один интервал'
+      errors[`${path}.intervals`] = 'Особое расписание требует хотя бы один интервал'
     }
-    exception.intervals.forEach((interval, intervalIndex) => {
-      if (!timePattern.test(interval.start)) {
-        errors[`${path}.intervals[${intervalIndex}].start`] =
-          'Формат времени — HH:mm'
-      }
-      if (!timePattern.test(interval.end)) {
-        errors[`${path}.intervals[${intervalIndex}].end`] =
-          'Формат времени — HH:mm'
-      } else if (
-        timePattern.test(interval.start) &&
-        interval.start >= interval.end
-      ) {
-        errors[`${path}.intervals[${intervalIndex}].end`] =
-          'Окончание должно быть позже начала'
-      }
-    })
-    const sorted = exception.intervals
-      .filter(
-        (interval) =>
-          timePattern.test(interval.start) && timePattern.test(interval.end),
-      )
-      .sort((first, second) => first.start.localeCompare(second.start))
-    for (let index = 1; index < sorted.length; index += 1) {
-      if (sorted[index - 1].end > sorted[index].start) {
-        errors[`${path}.intervals`] = 'Интервалы не должны пересекаться'
-      }
-    }
+    validateIntervals(exception.intervals, `${path}.intervals`, errors)
   })
   return errors
 }
@@ -179,66 +173,52 @@ function AvailabilityPage() {
   const [versionConflict, setVersionConflict] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const dirty = JSON.stringify(draft) !== JSON.stringify(savedDraft)
+  const blocker = useBlocker(dirty)
 
-  useEffect(() => {
-    let active = true
-    getAvailability()
-      .then(({ data, response }) => {
-        if (!active) return
-        if (!response.ok || !data) {
-          setLoadFailed(true)
-          setLoading(false)
-          return
+  const request = useCallback(() => getAvailability(), [])
+  const handleSuccess = useCallback((data: Availability) => {
+    const nextDraft = data.exists
+      ? {
+          timeZone: data.timeZone ?? 'UTC',
+          weeklyTemplate: data.weeklyTemplate ?? emptyWeeklyTemplate(),
+          exceptions: data.exceptions ?? [],
         }
-        const nextDraft = data.exists
-          ? {
-              timeZone: data.timeZone ?? 'UTC',
-              weeklyTemplate: data.weeklyTemplate ?? emptyWeeklyTemplate(),
-              exceptions: data.exceptions ?? [],
-            }
-          : {
-              timeZone: browserTimeZone(),
-              weeklyTemplate: emptyWeeklyTemplate(),
-              exceptions: [],
-            }
-        setSaved(data)
-        setDraft(nextDraft)
-        setSavedDraft(nextDraft)
-        setVersionConflict(false)
-        setFieldErrors({})
-        setLoading(false)
-      })
-      .catch(() => {
-        if (!active) return
-        setLoadFailed(true)
-        setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [loadAttempt])
+      : {
+          timeZone: browserTimeZone(),
+          weeklyTemplate: emptyWeeklyTemplate(),
+          exceptions: [],
+        }
+    setSaved(data)
+    setDraft(nextDraft)
+    setSavedDraft(nextDraft)
+    setVersionConflict(false)
+    setFieldErrors({})
+    setLoading(false)
+  }, [])
+  const handleFailure = useCallback(() => {
+    setLoadFailed(true)
+    setLoading(false)
+  }, [])
+  useApiRequest(loadAttempt, request, handleSuccess, handleFailure)
 
   useEffect(() => {
     if (!dirty) return
-    const message = 'Несохранённые изменения будут потеряны'
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault()
-      event.returnValue = message
-    }
-    const handleLinkClick = (event: MouseEvent) => {
-      if (!(event.target instanceof Element)) return
-      if (event.target.closest('a') && !window.confirm(message)) {
-        event.preventDefault()
-        event.stopPropagation()
-      }
+      event.returnValue = 'Несохранённые изменения будут потеряны'
     }
     window.addEventListener('beforeunload', handleBeforeUnload)
-    document.addEventListener('click', handleLinkClick, true)
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-      document.removeEventListener('click', handleLinkClick, true)
-    }
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [dirty])
+
+  useEffect(() => {
+    if (blocker.state !== 'blocked') return
+    if (window.confirm('Несохранённые изменения будут потеряны')) {
+      blocker.proceed()
+    } else {
+      blocker.reset()
+    }
+  }, [blocker])
 
   function addInterval(day: keyof WeeklyTemplate) {
     setDraft((current) => ({

@@ -58,7 +58,7 @@ class SlotCalculatorTests {
             List.of(),
             List.of(),
             List.of(),
-            List.of(new TimeInterval(start, end)),
+            List.of(TimeInterval.of(start, end)),
             List.of(),
             List.of());
     return new Availability(true, "UTC", 1, template, List.of());
