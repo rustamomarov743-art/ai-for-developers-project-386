@@ -183,3 +183,44 @@ op getBookingAvailability(
   @path id: string,
   @query timeZone: string,
 ): BookingAvailability | BadRequestResponse | NotFoundResponse | InternalErrorResponse;
+
+enum MeetingStatus {
+  SCHEDULED,
+  CANCELLED,
+}
+
+model Meeting {
+  id: string;
+  meetingTypeId: string;
+  startsAt: utcDateTime;
+  endsAt: utcDateTime;
+  guestName: string;
+  guestEmail: string;
+  createdAt: utcDateTime;
+  status: MeetingStatus;
+  meetingType: MeetingType;
+}
+
+model CreateBookingRequest {
+  meetingTypeId: string;
+  startsAt: utcDateTime;
+
+  @minLength(1)
+  @maxLength(100)
+  guestName: string;
+
+  @minLength(1)
+  @maxLength(254)
+  guestEmail: string;
+}
+
+model CreateBookingResponse {
+  @statusCode statusCode: 201;
+  @body meeting: Meeting;
+}
+
+@route("/api/booking/bookings")
+@post
+op createBooking(
+  @body request: CreateBookingRequest,
+): CreateBookingResponse | BadRequestResponse | ConflictResponse | InternalErrorResponse;

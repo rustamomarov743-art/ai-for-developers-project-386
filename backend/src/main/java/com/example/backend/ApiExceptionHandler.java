@@ -44,6 +44,12 @@ class ApiExceptionHandler {
         HttpStatus.NOT_FOUND, "MEETING_TYPE_NOT_FOUND", "Тип встречи не найден", request, null);
   }
 
+  @ExceptionHandler(SlotUnavailableException.class)
+  ResponseEntity<ProblemDetails> handleSlotUnavailable(HttpServletRequest request) {
+    return problem(
+        HttpStatus.CONFLICT, "SLOT_UNAVAILABLE", "Выбранное время недоступно", request, null);
+  }
+
   @ExceptionHandler(AvailabilityVersionConflictException.class)
   ResponseEntity<ProblemDetails> handleAvailabilityVersionConflict(HttpServletRequest request) {
     return problem(

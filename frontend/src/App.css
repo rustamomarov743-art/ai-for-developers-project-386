@@ -632,6 +632,82 @@
   font-weight: 650;
 }
 
+.booking-summary {
+  margin-top: 28px;
+  padding: 24px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.booking-summary h2 {
+  margin-top: 0;
+}
+
+.booking-summary dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(120px, auto) 1fr;
+  gap: 10px 20px;
+}
+
+.booking-summary dt {
+  color: #475569;
+}
+
+.booking-summary dd {
+  margin: 0;
+  color: #172033;
+  font-weight: 650;
+}
+
+.booking-guest-form {
+  margin-top: 24px;
+  display: grid;
+  gap: 12px;
+}
+
+.booking-guest-form label {
+  margin-top: 8px;
+  color: #172033;
+  font-weight: 650;
+}
+
+.booking-guest-form input {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.booking-guest-form button,
+.booking-page > button,
+.booking-page > a:not(.booking-home-link) {
+  min-height: 44px;
+  margin-top: 16px;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.booking-page > a:not(.booking-home-link) {
+  display: inline-block;
+  margin-left: 12px;
+  box-sizing: border-box;
+  text-decoration: none;
+}
+
+.booking-guest-form button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .booking-page button:focus-visible {
   outline: 3px solid #93c5fd;
   outline-offset: 3px;

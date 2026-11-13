@@ -49,6 +49,13 @@ export type BusyInterval = {
     endsAt: string;
 };
 
+export type CreateBookingRequest = {
+    meetingTypeId: string;
+    startsAt: string;
+    guestName: string;
+    guestEmail: string;
+};
+
 export type CreateMeetingTypeRequest = {
     name: string;
     description: string;
@@ -58,6 +65,20 @@ export type CreateMeetingTypeRequest = {
 export type HealthResponse = {
     status: string;
 };
+
+export type Meeting = {
+    id: string;
+    meetingTypeId: string;
+    startsAt: string;
+    endsAt: string;
+    guestName: string;
+    guestEmail: string;
+    createdAt: string;
+    status: MeetingStatus;
+    meetingType: MeetingType;
+};
+
+export type MeetingStatus = 'SCHEDULED' | 'CANCELLED';
 
 export type MeetingType = {
     id: string;
@@ -98,6 +119,39 @@ export type WeeklyTemplate = {
     SATURDAY: Array<TimeInterval>;
     SUNDAY: Array<TimeInterval>;
 };
+
+export type CreateBookingData = {
+    body: CreateBookingRequest;
+    path?: never;
+    query?: never;
+    url: '/api/booking/bookings';
+};
+
+export type CreateBookingErrors = {
+    /**
+     * The server could not understand the request due to invalid syntax.
+     */
+    400: ProblemDetails;
+    /**
+     * The request conflicts with the current state of the server.
+     */
+    409: ProblemDetails;
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type CreateBookingError = CreateBookingErrors[keyof CreateBookingErrors];
+
+export type CreateBookingResponses = {
+    /**
+     * The request has succeeded and a new resource has been created as a result.
+     */
+    201: Meeting;
+};
+
+export type CreateBookingResponse = CreateBookingResponses[keyof CreateBookingResponses];
 
 export type ListBookingMeetingTypesData = {
     body?: never;

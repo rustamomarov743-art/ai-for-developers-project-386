@@ -4,6 +4,41 @@ info:
   version: 0.0.0
 tags: []
 paths:
+  /api/booking/bookings:
+    post:
+      operationId: createBooking
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meeting'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: Server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBookingRequest'
   /api/booking/meeting-types:
     get:
       operationId: listBookingMeetingTypes
@@ -303,6 +338,27 @@ components:
         endsAt:
           type: string
           format: date-time
+    CreateBookingRequest:
+      type: object
+      required:
+        - meetingTypeId
+        - startsAt
+        - guestName
+        - guestEmail
+      properties:
+        meetingTypeId:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        guestName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        guestEmail:
+          type: string
+          minLength: 1
+          maxLength: 254
     CreateMeetingTypeRequest:
       type: object
       required:
@@ -330,6 +386,45 @@ components:
       properties:
         status:
           type: string
+    Meeting:
+      type: object
+      required:
+        - id
+        - meetingTypeId
+        - startsAt
+        - endsAt
+        - guestName
+        - guestEmail
+        - createdAt
+        - status
+        - meetingType
+      properties:
+        id:
+          type: string
+        meetingTypeId:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        guestName:
+          type: string
+        guestEmail:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/MeetingStatus'
+        meetingType:
+          $ref: '#/components/schemas/MeetingType'
+    MeetingStatus:
+      type: string
+      enum:
+        - SCHEDULED
+        - CANCELLED
     MeetingType:
       type: object
       required:

@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  createBooking,
   getBookingAvailability,
   listBookingMeetingTypes,
 } from './api/generated/sdk.gen'
 import type {
   BookingAvailability,
   BookingSlot,
+  Meeting,
   MeetingType,
 } from './api/generated/types.gen'
 
@@ -36,6 +39,40 @@ function formatTime(instant: string, timeZone: string) {
   }).format(new Date(instant))
 }
 
+function MeetingSummary({
+  meetingType,
+  date,
+  startsAt,
+  endsAt,
+  timeZone,
+}: {
+  meetingType: MeetingType
+  date: string
+  startsAt: string
+  endsAt: string
+  timeZone: string
+}) {
+  return (
+    <section className="booking-summary" aria-labelledby="booking-summary-title">
+      <h2 id="booking-summary-title">Сводка встречи</h2>
+      <dl>
+        <dt>Тип встречи</dt>
+        <dd>{meetingType.name}</dd>
+        <dt>Дата</dt>
+        <dd>{formatDate(date)}</dd>
+        <dt>Время</dt>
+        <dd>
+          {formatTime(startsAt, timeZone)}–{formatTime(endsAt, timeZone)}
+        </dd>
+        <dt>Длительность</dt>
+        <dd>{meetingType.durationMinutes} мин</dd>
+        <dt>Часовой пояс</dt>
+        <dd>{timeZone}</dd>
+      </dl>
+    </section>
+  )
+}
+
 function BookingPage() {
   const [timeZone] = useState(guestTimeZone)
   const [meetingTypes, setMeetingTypes] = useState<MeetingType[]>([])
@@ -49,6 +86,17 @@ function BookingPage() {
   const [availabilityAttempt, setAvailabilityAttempt] = useState(0)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null)
+  const [guestName, setGuestName] = useState('')
+  const [guestEmail, setGuestEmail] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [bookingError, setBookingError] = useState<string | null>(null)
+  const [conflictMessage, setConflictMessage] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{
+    guestName?: string
+    guestEmail?: string
+  }>({})
+  const [bookedMeeting, setBookedMeeting] = useState<Meeting | null>(null)
+  const [bookedDate, setBookedDate] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -102,6 +150,7 @@ function BookingPage() {
   }, [availabilityAttempt, selectedType, timeZone])
 
   function selectType(meetingType: MeetingType) {
+    setConflictMessage(null)
     setSelectedType(meetingType)
     setAvailability(null)
     setAvailabilityLoading(true)
@@ -111,7 +160,38 @@ function BookingPage() {
     setSelectedSlot(null)
   }
 
+  function startAnotherBooking() {
+    setBookedMeeting(null)
+    setBookedDate(null)
+    setMeetingTypes([])
+    setSelectedType(null)
+    setAvailability(null)
+    setSelectedDate(null)
+    setSelectedSlot(null)
+    setGuestName('')
+    setGuestEmail('')
+    setFieldErrors({})
+    setBookingError(null)
+    setConflictMessage(null)
+    setLoading(true)
+    setLoadFailed(false)
+    setLoadAttempt((value) => value + 1)
+  }
+
+  function returnToSlots() {
+    setSelectedSlot(null)
+    setSelectedDate(null)
+    setAvailability(null)
+    setAvailabilityLoading(true)
+    setAvailabilityFailed(false)
+    setBookingError(null)
+    setConflictMessage(null)
+    setFieldErrors({})
+    setAvailabilityAttempt((value) => value + 1)
+  }
+
   function returnToTypes() {
+    setConflictMessage(null)
     setSelectedType(null)
     setAvailability(null)
     setAvailabilityFailed(false)
@@ -121,6 +201,133 @@ function BookingPage() {
 
   const selectedDay = availability?.days.find((day) => day.date === selectedDate)
 
+  async function submitBooking(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!selectedType || !selectedDate || !selectedSlot || submitting) return
+    const trimmedName = guestName.trim()
+    const trimmedEmail = guestEmail.trim()
+    const errors: { guestName?: string; guestEmail?: string } = {}
+    if (!trimmedName) {
+      errors.guestName = 'Имя обязательно'
+    } else if (trimmedName.length > 100) {
+      errors.guestName = 'Имя должно содержать не более 100 символов'
+    }
+    if (!trimmedEmail) {
+      errors.guestEmail = 'Email обязателен'
+    } else if (trimmedEmail.length > 254) {
+      errors.guestEmail = 'Email должен содержать не более 254 символов'
+    } else {
+      const at = trimmedEmail.indexOf('@')
+      if (
+        at <= 0 ||
+        at !== trimmedEmail.lastIndexOf('@') ||
+        at === trimmedEmail.length - 1 ||
+        /\s/.test(trimmedEmail)
+      ) {
+        errors.guestEmail = 'Укажите корректный email'
+      }
+    }
+    setFieldErrors(errors)
+    setBookingError(null)
+    if (Object.keys(errors).length > 0) return
+
+    setSubmitting(true)
+    try {
+      const { data, error, response } = await createBooking({
+        body: {
+          meetingTypeId: selectedType.id,
+          startsAt: selectedSlot.startsAt,
+          guestName: trimmedName,
+          guestEmail: trimmedEmail,
+        },
+      })
+      if (response.ok && data) {
+        setConflictMessage(null)
+        setBookedMeeting(data)
+        setBookedDate(selectedDate)
+      } else if (response.status === 400 && error?.code === 'VALIDATION_ERROR') {
+        const serverErrors: { guestName?: string; guestEmail?: string } = {}
+        for (const fieldError of error.errors ?? []) {
+          if (fieldError.path === 'guestName') serverErrors.guestName = fieldError.message
+          if (fieldError.path === 'guestEmail') serverErrors.guestEmail = fieldError.message
+        }
+        setFieldErrors(serverErrors)
+        if (Object.keys(serverErrors).length === 0) {
+          setBookingError('Не удалось забронировать встречу. Попробуйте ещё раз')
+        }
+      } else if (response.status === 409 && error?.code === 'SLOT_UNAVAILABLE') {
+        await refreshAfterConflict(selectedType)
+      } else {
+        setBookingError('Не удалось забронировать встречу. Попробуйте ещё раз')
+      }
+    } catch {
+      setBookingError('Не удалось забронировать встречу. Попробуйте ещё раз')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function refreshAfterConflict(meetingType: MeetingType) {
+    setSelectedSlot(null)
+    setSelectedDate(null)
+    setAvailability(null)
+    setFieldErrors({})
+    setAvailabilityFailed(false)
+    setAvailabilityLoading(true)
+    try {
+      const { data, response } = await getBookingAvailability({
+        path: { id: meetingType.id },
+        query: { timeZone },
+      })
+      if (!response.ok || !data) throw new Error('availability')
+      if (data.days.some((day) => day.hasAvailableSlots)) {
+        setAvailability(data)
+        setSelectedDate(data.days.find((day) => day.hasAvailableSlots)?.date ?? null)
+        setConflictMessage('Выбранное время недоступно. Выберите другое время')
+        return
+      }
+
+      const typesResult = await listBookingMeetingTypes({ query: { timeZone } })
+      if (!typesResult.response.ok || !typesResult.data) {
+        throw new Error('meeting types')
+      }
+      setMeetingTypes(typesResult.data.filter((candidate) => candidate.id !== meetingType.id))
+      setSelectedType(null)
+      setAvailability(null)
+      setSelectedDate(null)
+      setLoading(false)
+      setLoadFailed(false)
+      setConflictMessage('Выбранное время недоступно. Выберите другую встречу')
+    } catch {
+      setAvailabilityFailed(true)
+      setBookingError('Не удалось загрузить доступность')
+    } finally {
+      setAvailabilityLoading(false)
+    }
+  }
+
+  if (bookedMeeting && bookedDate) {
+    return (
+      <main className="booking-page">
+        <Link className="booking-home-link" to="/">
+          Календарь звонков
+        </Link>
+        <h1>Встреча забронирована</h1>
+        <MeetingSummary
+          meetingType={bookedMeeting.meetingType}
+          date={bookedDate}
+          startsAt={bookedMeeting.startsAt}
+          endsAt={bookedMeeting.endsAt}
+          timeZone={timeZone}
+        />
+        <button type="button" onClick={startAnotherBooking}>
+          Забронировать ещё одну встречу
+        </button>
+        <Link to="/">На главную</Link>
+      </main>
+    )
+  }
+
   return (
     <main className="booking-page">
       <Link className="booking-home-link" to="/">
@@ -128,6 +335,7 @@ function BookingPage() {
       </Link>
       <h1>Бронирование встречи</h1>
       <p className="booking-time-zone">Часовой пояс: {timeZone}</p>
+      {conflictMessage && <p role="alert">{conflictMessage}</p>}
       {!selectedType && loading && <p role="status">Загрузка…</p>}
       {!selectedType && loadFailed && (
         <div role="alert">
@@ -252,6 +460,53 @@ function BookingPage() {
             </>
           )}
         </section>
+      )}
+      {selectedType && selectedDate && selectedSlot && (
+        <>
+          <MeetingSummary
+            meetingType={selectedType}
+            date={selectedDate}
+            startsAt={selectedSlot.startsAt}
+            endsAt={selectedSlot.endsAt}
+            timeZone={timeZone}
+          />
+          <button type="button" className="booking-back" onClick={returnToSlots}>
+            Изменить время
+          </button>
+          {bookingError && <p role="alert">{bookingError}</p>}
+          <form className="booking-guest-form" noValidate onSubmit={submitBooking}>
+            <label htmlFor="guest-name">Имя</label>
+            <input
+              id="guest-name"
+              value={guestName}
+              aria-invalid={Boolean(fieldErrors.guestName)}
+              aria-describedby={fieldErrors.guestName ? 'guest-name-error' : undefined}
+              onChange={(event) => setGuestName(event.target.value)}
+            />
+            {fieldErrors.guestName && (
+              <p className="field-error" id="guest-name-error">
+                {fieldErrors.guestName}
+              </p>
+            )}
+            <label htmlFor="guest-email">Email</label>
+            <input
+              id="guest-email"
+              type="email"
+              value={guestEmail}
+              aria-invalid={Boolean(fieldErrors.guestEmail)}
+              aria-describedby={fieldErrors.guestEmail ? 'guest-email-error' : undefined}
+              onChange={(event) => setGuestEmail(event.target.value)}
+            />
+            {fieldErrors.guestEmail && (
+              <p className="field-error" id="guest-email-error">
+                {fieldErrors.guestEmail}
+              </p>
+            )}
+            <button type="submit" disabled={submitting}>
+              Забронировать
+            </button>
+          </form>
+        </>
       )}
     </main>
   )
