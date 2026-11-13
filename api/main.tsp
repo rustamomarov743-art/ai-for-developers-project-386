@@ -201,6 +201,24 @@ model Meeting {
   meetingType: MeetingType;
 }
 
+model OwnerMeeting {
+  id: string;
+  meetingTypeId: string;
+  startsAt: utcDateTime;
+  endsAt: utcDateTime;
+  guestName: string;
+  guestEmail: string;
+  createdAt: utcDateTime;
+  status: MeetingStatus;
+  meetingType: MeetingType;
+  durationMinutes: int32;
+  inProgress: boolean;
+}
+
+@route("/api/owner/meetings")
+@get
+op listOwnerMeetings(): OwnerMeeting[] | InternalErrorResponse;
+
 model CreateBookingRequest {
   meetingTypeId: string;
   startsAt: utcDateTime;

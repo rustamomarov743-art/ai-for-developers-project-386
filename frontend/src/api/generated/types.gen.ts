@@ -88,6 +88,20 @@ export type MeetingType = {
     createdAt: string;
 };
 
+export type OwnerMeeting = {
+    id: string;
+    meetingTypeId: string;
+    startsAt: string;
+    endsAt: string;
+    guestName: string;
+    guestEmail: string;
+    createdAt: string;
+    status: MeetingStatus;
+    meetingType: MeetingType;
+    durationMinutes: number;
+    inProgress: boolean;
+};
+
 export type ProblemDetails = {
     type: string;
     title: string;
@@ -352,3 +366,28 @@ export type CreateMeetingTypeResponses = {
 };
 
 export type CreateMeetingTypeResponse = CreateMeetingTypeResponses[keyof CreateMeetingTypeResponses];
+
+export type ListOwnerMeetingsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/owner/meetings';
+};
+
+export type ListOwnerMeetingsErrors = {
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type ListOwnerMeetingsError = ListOwnerMeetingsErrors[keyof ListOwnerMeetingsErrors];
+
+export type ListOwnerMeetingsResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Array<OwnerMeeting>;
+};
+
+export type ListOwnerMeetingsResponse = ListOwnerMeetingsResponses[keyof ListOwnerMeetingsResponses];

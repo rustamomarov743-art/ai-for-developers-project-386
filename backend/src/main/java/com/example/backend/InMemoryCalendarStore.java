@@ -368,6 +368,28 @@ class InMemoryCalendarStore {
     return slotCalculator.calculate(meetingType, availability, guestZone, busyIntervals());
   }
 
+  synchronized List<OwnerMeeting> upcomingMeetings() {
+    var now = clock.instant();
+    return meetings.stream()
+        .filter(meeting -> meeting.status() == MeetingStatus.SCHEDULED)
+        .filter(meeting -> meeting.endsAt().isAfter(now))
+        .sorted(Comparator.comparing(Meeting::startsAt))
+        .map(meeting ->
+            new OwnerMeeting(
+                meeting.id(),
+                meeting.meetingTypeId(),
+                meeting.startsAt(),
+                meeting.endsAt(),
+                meeting.guestName(),
+                meeting.guestEmail(),
+                meeting.createdAt(),
+                meeting.status(),
+                meeting.meetingType(),
+                meeting.meetingType().durationMinutes(),
+                !meeting.startsAt().isAfter(now)))
+        .toList();
+  }
+
   synchronized Meeting createBooking(CreateBookingRequest request) {
     var validated = validateBooking(request);
     var meetingType =

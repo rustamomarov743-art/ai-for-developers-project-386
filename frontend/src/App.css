@@ -727,3 +727,166 @@
     min-height: 64px;
   }
 }
+
+
+.owner-time-zone {
+  color: #64748b;
+  font-size: 0.9375rem;
+}
+
+.meeting-groups {
+  display: grid;
+  gap: 28px;
+}
+
+.meeting-date-group h2 {
+  margin: 0 0 12px;
+  color: #475569;
+  font-size: 1.125rem;
+  text-transform: capitalize;
+}
+
+.owner-meeting-card {
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.owner-meeting-card + .owner-meeting-card {
+  margin-top: 12px;
+}
+
+.owner-meeting-card h3 {
+  margin: 0 0 10px;
+  color: #172033;
+}
+
+.owner-meeting-card p {
+  margin: 6px 0;
+  color: #475569;
+}
+
+.owner-meeting-card a {
+  color: #2563eb;
+}
+
+.owner-meeting-card .meeting-progress {
+  display: inline-block;
+  margin: 0 0 10px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.owner-calendar {
+  margin-top: 32px;
+  padding: 20px;
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.owner-calendar summary {
+  color: #172033;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.calendar-navigation {
+  margin: 20px 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.calendar-navigation h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 1.25rem;
+}
+
+.calendar-navigation button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172033;
+  font: inherit;
+  cursor: pointer;
+}
+
+.calendar-navigation button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.owner-calendar table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.owner-calendar th,
+.owner-calendar td {
+  border: 1px solid #e2e8f0;
+}
+
+.owner-calendar th {
+  padding: 8px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.8125rem;
+}
+
+.owner-calendar td {
+  height: 104px;
+  padding: 7px;
+  vertical-align: top;
+  background: #ffffff;
+}
+
+.owner-calendar .calendar-day-number {
+  color: #475569;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.owner-calendar .past-day {
+  background: #f1f5f9;
+  opacity: 0.55;
+}
+
+.owner-calendar .past-day .calendar-day-number {
+  color: #94a3b8;
+}
+
+.owner-calendar .empty-day {
+  background: #f8fafc;
+}
+
+.calendar-meeting {
+  margin-top: 6px;
+  padding: 4px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 0.75rem;
+}
+
+.calendar-meeting time,
+.calendar-meeting span {
+  display: block;
+}
+
+.calendar-meeting time {
+  font-weight: 700;
+}
