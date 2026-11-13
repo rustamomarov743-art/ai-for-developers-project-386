@@ -102,17 +102,30 @@ model WeeklyTemplate {
   SUNDAY: TimeInterval[];
 }
 
+enum AvailabilityExceptionType {
+  CLOSED,
+  CUSTOM,
+}
+
+model AvailabilityException {
+  date: plainDate;
+  type: AvailabilityExceptionType;
+  intervals: TimeInterval[];
+}
+
 model Availability {
   exists: boolean;
   timeZone?: string;
   version?: int32;
   weeklyTemplate?: WeeklyTemplate;
+  exceptions?: AvailabilityException[];
 }
 
 model ReplaceAvailabilityRequest {
   timeZone: string;
   expectedVersion: int32 | null;
   weeklyTemplate: WeeklyTemplate;
+  exceptions: AvailabilityException[];
 }
 
 @route("/api/owner/availability")

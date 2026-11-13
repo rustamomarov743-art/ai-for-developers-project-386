@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -359,6 +359,7 @@ describe('Доступность владельца', () => {
         timeZone: 'Europe/Moscow',
         expectedVersion: 4,
         weeklyTemplate: updatedTemplate,
+        exceptions: [],
       },
     })
     expect(await screen.findByText('Доступность сохранена')).toBeInTheDocument()
@@ -508,6 +509,9 @@ describe('Доступность владельца', () => {
             ...emptyWeeklyTemplate,
             MONDAY: [{ start: '09:03', end: '10:17' }],
           },
+          exceptions: [
+            { date: '2099-12-01', type: 'CLOSED', intervals: [] },
+          ],
         },
         request: availabilityRequest,
         response: new Response(null, { status: 200 }),
@@ -521,6 +525,9 @@ describe('Доступность владельца', () => {
             ...emptyWeeklyTemplate,
             MONDAY: [{ start: '12:00', end: '13:00' }],
           },
+          exceptions: [
+            { date: '2099-12-03', type: 'CLOSED', intervals: [] },
+          ],
         },
         request: availabilityRequest,
         response: new Response(null, { status: 200 }),
@@ -546,6 +553,9 @@ describe('Доступность владельца', () => {
     const startInput = await screen.findByLabelText('Понедельник: начало 1')
     await user.clear(startInput)
     await user.type(startInput, '09:04')
+    fireEvent.change(screen.getByLabelText('Дата исключения 1'), {
+      target: { value: '2099-12-02' },
+    })
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
     expect(
@@ -559,11 +569,13 @@ describe('Доступность владельца', () => {
     await user.click(reloadButton)
     expect(getAvailabilityMock).toHaveBeenCalledTimes(1)
     expect(screen.getByLabelText('Понедельник: начало 1')).toHaveValue('09:04')
+    expect(screen.getByLabelText('Дата исключения 1')).toHaveValue('2099-12-02')
 
     await user.click(reloadButton)
 
     expect(confirmMock).toHaveBeenCalledTimes(2)
     expect(await screen.findByDisplayValue('12:00')).toBeInTheDocument()
+    expect(screen.getByLabelText('Дата исключения 1')).toHaveValue('2099-12-03')
     expect(getAvailabilityMock).toHaveBeenCalledTimes(2)
     expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled()
   })
@@ -718,6 +730,7 @@ describe('Доступность владельца', () => {
         timeZone,
         expectedVersion: null,
         weeklyTemplate: emptyWeeklyTemplate,
+        exceptions: [],
       },
     })
     expect(screen.getByLabelText('Часовой пояс')).toHaveAttribute('readonly')
@@ -725,6 +738,189 @@ describe('Доступность владельца', () => {
     expect(
       screen.getByRole('button', { name: 'Отменить изменения' }),
     ).toBeDisabled()
+  })
+
+  it('отменяет удаление исключения и сохраняет его удаление после сбоя для повтора', async () => {
+    const user = userEvent.setup()
+    const savedException = {
+      date: '2099-12-01',
+      type: 'CLOSED' as const,
+      intervals: [],
+    }
+    getAvailabilityMock.mockResolvedValue({
+      data: {
+        exists: true,
+        timeZone: 'Europe/Moscow',
+        version: 2,
+        weeklyTemplate: emptyWeeklyTemplate,
+        exceptions: [savedException],
+      },
+      request: availabilityRequest,
+      response: new Response(null, { status: 200 }),
+    })
+    replaceAvailabilityMock
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValue({
+        data: {
+          exists: true,
+          timeZone: 'Europe/Moscow',
+          version: 3,
+          weeklyTemplate: emptyWeeklyTemplate,
+          exceptions: [],
+        },
+        request: availabilityRequest,
+        response: new Response(null, { status: 200 }),
+      })
+    const confirmMock = vi
+      .spyOn(window, 'confirm')
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true)
+    renderApp('/owner/availability')
+
+    expect(await screen.findByDisplayValue('2099-12-01')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Удалить исключение 1' }))
+    expect(screen.getByText('Исключений нет')).toBeInTheDocument()
+    expect(replaceAvailabilityMock).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Отменить изменения' }))
+    expect(screen.queryByDisplayValue('2099-12-01')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Отменить изменения' }))
+    expect(confirmMock).toHaveBeenCalledTimes(2)
+    expect(screen.getByDisplayValue('2099-12-01')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Удалить исключение 1' }))
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    expect(
+      await screen.findByText('Не удалось сохранить доступность. Попробуйте ещё раз'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Исключений нет')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    expect(await screen.findByText('Доступность сохранена')).toBeInTheDocument()
+    expect(replaceAvailabilityMock).toHaveBeenCalledTimes(2)
+    expect(replaceAvailabilityMock).toHaveBeenLastCalledWith({
+      body: {
+        timeZone: 'Europe/Moscow',
+        expectedVersion: 2,
+        weeklyTemplate: emptyWeeklyTemplate,
+        exceptions: [],
+      },
+    })
+    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled()
+  })
+
+  it('проверяет даты и интервалы исключений после нажатия сохранения', async () => {
+    const user = userEvent.setup()
+    renderApp('/owner/availability')
+    expect(await screen.findByText('Исключений нет')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Добавить исключение' }))
+    fireEvent.change(screen.getByLabelText('Дата исключения 1'), {
+      target: { value: '2000-01-01' },
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    expect(
+      await screen.findByText('Дата исключения не может быть в прошлом'),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Дата исключения 1')).toHaveValue('2000-01-01')
+    expect(replaceAvailabilityMock).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText('Дата исключения 1'), {
+      target: { value: '2099-12-02' },
+    })
+    await user.selectOptions(screen.getByLabelText('Тип исключения 1'), 'CUSTOM')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    expect(
+      await screen.findByText('Особый день требует хотя бы один интервал'),
+    ).toBeInTheDocument()
+    expect(replaceAvailabilityMock).not.toHaveBeenCalled()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Добавить интервал — исключение 1' }),
+    )
+    await user.type(screen.getByLabelText('Исключение 1: начало 1'), '09:00')
+    await user.type(screen.getByLabelText('Исключение 1: окончание 1'), '10:00')
+    await user.click(
+      screen.getByRole('button', { name: 'Добавить интервал — исключение 1' }),
+    )
+    await user.type(screen.getByLabelText('Исключение 1: начало 2'), '09:30')
+    await user.type(screen.getByLabelText('Исключение 1: окончание 2'), '11:00')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    expect(
+      await screen.findByText('Интервалы не должны пересекаться'),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Исключение 1: начало 2')).toHaveValue('09:30')
+    expect(replaceAvailabilityMock).not.toHaveBeenCalled()
+  })
+
+  it('сохраняет закрытую и особую даты одним черновиком с шаблоном', async () => {
+    const user = userEvent.setup()
+    const exceptions = [
+      { date: '2099-12-01', type: 'CLOSED' as const, intervals: [] },
+      {
+        date: '2099-12-02',
+        type: 'CUSTOM' as const,
+        intervals: [{ start: '11:03', end: '12:17' }],
+      },
+    ]
+    getAvailabilityMock.mockResolvedValue({
+      data: {
+        exists: true,
+        timeZone: 'Europe/Moscow',
+        version: 4,
+        weeklyTemplate: emptyWeeklyTemplate,
+        exceptions: [],
+      },
+      request: availabilityRequest,
+      response: new Response(null, { status: 200 }),
+    })
+    replaceAvailabilityMock.mockResolvedValue({
+      data: {
+        exists: true,
+        timeZone: 'Europe/Moscow',
+        version: 5,
+        weeklyTemplate: emptyWeeklyTemplate,
+        exceptions,
+      },
+      request: availabilityRequest,
+      response: new Response(null, { status: 200 }),
+    })
+    renderApp('/owner/availability')
+
+    expect(await screen.findByText('Исключений нет')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Добавить исключение' }))
+    fireEvent.change(screen.getByLabelText('Дата исключения 1'), {
+      target: { value: '2099-12-02' },
+    })
+    await user.selectOptions(screen.getByLabelText('Тип исключения 1'), 'CUSTOM')
+    await user.click(
+      screen.getByRole('button', { name: 'Добавить интервал — исключение 1' }),
+    )
+    await user.type(screen.getByLabelText('Исключение 1: начало 1'), '11:03')
+    await user.type(screen.getByLabelText('Исключение 1: окончание 1'), '12:17')
+    await user.click(screen.getByRole('button', { name: 'Добавить исключение' }))
+    fireEvent.change(screen.getByLabelText('Дата исключения 1'), {
+      target: { value: '2099-12-01' },
+    })
+
+    expect(screen.getByText('День закрыт')).toBeInTheDocument()
+    expect(replaceAvailabilityMock).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    expect(replaceAvailabilityMock).toHaveBeenCalledWith({
+      body: {
+        timeZone: 'Europe/Moscow',
+        expectedVersion: 4,
+        weeklyTemplate: emptyWeeklyTemplate,
+        exceptions,
+      },
+    })
+    expect(await screen.findByText('Доступность сохранена')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled()
   })
 })
 

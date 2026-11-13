@@ -1,6 +1,7 @@
 package com.example.backend;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -79,6 +80,7 @@ class InMemoryCalendarStore {
     var errors = new ArrayList<ApiFieldError>();
     var timeZone = validateTimeZone(request.timeZone(), errors);
     var template = validateWeeklyTemplate(request.weeklyTemplate(), errors);
+    var exceptions = validateExceptions(request.exceptions(), timeZone, errors);
     if (availability != null && timeZone != null && !availability.timeZone().equals(timeZone)) {
       errors.add(new ApiFieldError("timeZone", "Часовой пояс нельзя изменить после создания"));
     }
@@ -93,8 +95,90 @@ class InMemoryCalendarStore {
       throw new AvailabilityVersionConflictException();
     }
     var nextVersion = availability == null ? 1 : availability.version() + 1;
-    availability = new Availability(true, timeZone, nextVersion, template);
+    availability = new Availability(true, timeZone, nextVersion, template, exceptions);
     return availability;
+  }
+
+  private List<AvailabilityException> validateExceptions(
+      JsonNode exceptionsNode, String timeZone, List<ApiFieldError> errors) {
+    if (!isPresent(exceptionsNode)) {
+      return List.of();
+    }
+    var exceptions = new ArrayList<AvailabilityException>();
+    int exceptionIndex = 0;
+    for (var exceptionNode : exceptionsNode) {
+      var path = "exceptions[" + exceptionIndex + "]";
+      LocalDate date = null;
+      try {
+        date = LocalDate.parse(exceptionNode.get("date").textValue());
+        if (timeZone != null && date.isBefore(LocalDate.now(clock.withZone(ZoneId.of(timeZone))))) {
+          errors.add(new ApiFieldError(path + ".date", "Дата исключения не может быть в прошлом"));
+        }
+      } catch (RuntimeException exception) {
+        errors.add(new ApiFieldError(path + ".date", "Укажите дату в формате ГГГГ-ММ-ДД"));
+      }
+
+      AvailabilityExceptionType type = null;
+      try {
+        type = AvailabilityExceptionType.valueOf(exceptionNode.get("type").textValue());
+      } catch (RuntimeException exception) {
+        errors.add(new ApiFieldError(path + ".type", "Тип исключения — CLOSED или CUSTOM"));
+      }
+
+      var intervals = new ArrayList<TimeInterval>();
+      var intervalsNode = exceptionNode.get("intervals");
+      if (!isPresent(intervalsNode)) {
+        errors.add(new ApiFieldError(path + ".intervals", "Укажите интервалы исключения"));
+      } else {
+        int intervalIndex = 0;
+        for (var interval : intervalsNode) {
+          var start = interval.get("start");
+          var end = interval.get("end");
+          if (!isValidTime(start)) {
+            errors.add(
+                new ApiFieldError(
+                    path + ".intervals[" + intervalIndex + "].start", "Формат времени — HH:mm"));
+          }
+          if (!isValidTime(end)) {
+            errors.add(
+                new ApiFieldError(
+                    path + ".intervals[" + intervalIndex + "].end", "Формат времени — HH:mm"));
+          }
+          if (isValidTime(start) && isValidTime(end)) {
+            if (start.textValue().compareTo(end.textValue()) >= 0) {
+              errors.add(
+                  new ApiFieldError(
+                      path + ".intervals[" + intervalIndex + "].end",
+                      "Окончание должно быть позже начала в том же дне"));
+            }
+            intervals.add(new TimeInterval(start.textValue(), end.textValue()));
+          }
+          intervalIndex++;
+        }
+      }
+      intervals.sort(Comparator.comparing(TimeInterval::start));
+      for (int intervalIndex = 1; intervalIndex < intervals.size(); intervalIndex++) {
+        if (intervals.get(intervalIndex - 1).end().compareTo(intervals.get(intervalIndex).start())
+            > 0) {
+          errors.add(new ApiFieldError(path + ".intervals", "Интервалы не должны пересекаться"));
+        }
+      }
+      if (type == AvailabilityExceptionType.CLOSED
+          && isPresent(intervalsNode)
+          && !intervals.isEmpty()) {
+        errors.add(new ApiFieldError(path + ".intervals", "Закрытый день не содержит интервалов"));
+      }
+      if (type == AvailabilityExceptionType.CUSTOM && intervals.isEmpty()) {
+        errors.add(
+            new ApiFieldError(path + ".intervals", "Особый день требует хотя бы один интервал"));
+      }
+      if (date != null && type != null) {
+        exceptions.add(new AvailabilityException(date, type, List.copyOf(intervals)));
+      }
+      exceptionIndex++;
+    }
+    exceptions.sort(Comparator.comparing(AvailabilityException::date));
+    return List.copyOf(exceptions);
   }
 
   private static void validateJsonTypes(ReplaceAvailabilityRequest request) {
@@ -102,6 +186,31 @@ class InMemoryCalendarStore {
         || (isPresent(request.expectedVersion()) && !request.expectedVersion().isInt())
         || (isPresent(request.weeklyTemplate()) && !request.weeklyTemplate().isObject())) {
       throw new MalformedRequestException();
+    }
+    if (request.exceptions() != null) {
+      if (!request.exceptions().isArray()) {
+        throw new MalformedRequestException();
+      }
+      for (var exception : request.exceptions()) {
+        if (!exception.isObject()
+            || (isPresent(exception.get("date")) && !exception.get("date").isTextual())
+            || (isPresent(exception.get("type")) && !exception.get("type").isTextual())) {
+          throw new MalformedRequestException();
+        }
+        var intervals = exception.get("intervals");
+        if (intervals != null && !intervals.isArray()) {
+          throw new MalformedRequestException();
+        }
+        if (isPresent(intervals)) {
+          for (var interval : intervals) {
+            if (!interval.isObject()
+                || (isPresent(interval.get("start")) && !interval.get("start").isTextual())
+                || (isPresent(interval.get("end")) && !interval.get("end").isTextual())) {
+              throw new MalformedRequestException();
+            }
+          }
+        }
+      }
     }
     if (!isPresent(request.weeklyTemplate()) || !request.weeklyTemplate().isObject()) {
       return;
@@ -207,7 +316,20 @@ class InMemoryCalendarStore {
   }
 
   synchronized Availability availability() {
-    return availability == null ? Availability.absent() : availability;
+    if (availability == null) {
+      return Availability.absent();
+    }
+    var today = LocalDate.now(clock.withZone(ZoneId.of(availability.timeZone())));
+    var currentExceptions =
+        availability.exceptions().stream()
+            .filter(exception -> !exception.date().isBefore(today))
+            .toList();
+    return new Availability(
+        true,
+        availability.timeZone(),
+        availability.version(),
+        availability.weeklyTemplate(),
+        currentExceptions);
   }
 
   synchronized List<MeetingType> meetingTypes() {
