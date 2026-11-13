@@ -4,8 +4,37 @@ export type ClientOptions = {
     baseUrl: 'http://localhost:8080' | (string & {});
 };
 
+export type ApiFieldError = {
+    path: string;
+    message: string;
+};
+
+export type CreateMeetingTypeRequest = {
+    name: string;
+    description: string;
+    durationMinutes: number;
+};
+
 export type HealthResponse = {
     status: string;
+};
+
+export type MeetingType = {
+    id: string;
+    name: string;
+    description: string;
+    durationMinutes: number;
+    createdAt: string;
+};
+
+export type ProblemDetails = {
+    type: string;
+    title: string;
+    status: number;
+    detail: string;
+    instance: string;
+    code: string;
+    errors?: Array<ApiFieldError>;
 };
 
 export type GetHealthData = {
@@ -23,3 +52,61 @@ export type GetHealthResponses = {
 };
 
 export type GetHealthResponse = GetHealthResponses[keyof GetHealthResponses];
+
+export type ListMeetingTypesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/owner/meeting-types';
+};
+
+export type ListMeetingTypesErrors = {
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type ListMeetingTypesError = ListMeetingTypesErrors[keyof ListMeetingTypesErrors];
+
+export type ListMeetingTypesResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Array<MeetingType>;
+};
+
+export type ListMeetingTypesResponse = ListMeetingTypesResponses[keyof ListMeetingTypesResponses];
+
+export type CreateMeetingTypeData = {
+    body: CreateMeetingTypeRequest;
+    path?: never;
+    query?: never;
+    url: '/api/owner/meeting-types';
+};
+
+export type CreateMeetingTypeErrors = {
+    /**
+     * The server could not understand the request due to invalid syntax.
+     */
+    400: ProblemDetails;
+    /**
+     * The request conflicts with the current state of the server.
+     */
+    409: ProblemDetails;
+    /**
+     * Server error
+     */
+    500: ProblemDetails;
+};
+
+export type CreateMeetingTypeError = CreateMeetingTypeErrors[keyof CreateMeetingTypeErrors];
+
+export type CreateMeetingTypeResponses = {
+    /**
+     * The request has succeeded and a new resource has been created as a result.
+     */
+    201: MeetingType;
+};
+
+export type CreateMeetingTypeResponse = CreateMeetingTypeResponses[keyof CreateMeetingTypeResponses];

@@ -1,5 +1,7 @@
 import { Link, Route, Routes } from 'react-router-dom'
 import './App.css'
+import MeetingTypesPage from './MeetingTypesPage'
+import OwnerLayout from './OwnerLayout'
 
 function HomePage() {
   return (
@@ -43,10 +45,14 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
-      <Route
-        path="/owner"
-        element={<PlaceholderPage title="Страница владельца" />}
-      />
+      <Route path="/owner" element={<OwnerLayout />}>
+        <Route index element={<PlaceholderPage title="Страница владельца" />} />
+        <Route path="meeting-types" element={<MeetingTypesPage />} />
+        <Route
+          path="availability"
+          element={<PlaceholderPage title="Доступность" />}
+        />
+      </Route>
       <Route
         path="/book"
         element={<PlaceholderPage title="Бронирование встречи" />}
