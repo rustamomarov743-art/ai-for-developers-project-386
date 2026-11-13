@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
@@ -12,6 +12,8 @@ import type {
   Meeting,
   MeetingType,
 } from './api/generated/types.gen'
+import { formatTime } from './dateTime'
+import { useApiRequest } from './useApiRequest'
 
 function guestTimeZone() {
   try {
@@ -31,12 +33,30 @@ function formatDate(date: string) {
   }).format(new Date(`${date}T00:00:00Z`))
 }
 
-function formatTime(instant: string, timeZone: string) {
-  return new Intl.DateTimeFormat('ru-RU', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone,
-  }).format(new Date(instant))
+type BookingStep = 'type' | 'slot' | 'details' | 'confirmation'
+
+const bookingSteps: Array<{ id: BookingStep; label: string }> = [
+  { id: 'type', label: 'Тип встречи' },
+  { id: 'slot', label: 'Дата и время' },
+  { id: 'details', label: 'Данные гостя' },
+  { id: 'confirmation', label: 'Подтверждение' },
+]
+
+function BookingSteps({ currentStep }: { currentStep: BookingStep }) {
+  return (
+    <nav aria-label="Шаги бронирования">
+      <ol className="booking-steps">
+        {bookingSteps.map((step) => (
+          <li
+            key={step.id}
+            aria-current={step.id === currentStep ? 'step' : undefined}
+          >
+            {step.label}
+          </li>
+        ))}
+      </ol>
+    </nav>
+  )
 }
 
 function MeetingSummary({
@@ -98,56 +118,51 @@ function BookingPage() {
   const [bookedMeeting, setBookedMeeting] = useState<Meeting | null>(null)
   const [bookedDate, setBookedDate] = useState<string | null>(null)
 
-  useEffect(() => {
-    let active = true
-    listBookingMeetingTypes({ query: { timeZone } })
-      .then(({ data, response }) => {
-        if (!active) return
-        if (response.ok && data) {
-          setMeetingTypes(data)
-        } else {
-          setLoadFailed(true)
-        }
-        setLoading(false)
-      })
-      .catch(() => {
-        if (!active) return
-        setLoadFailed(true)
-        setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [loadAttempt, timeZone])
+  const typesRequest = useCallback(
+    () => listBookingMeetingTypes({ query: { timeZone } }),
+    [timeZone],
+  )
+  const handleTypesSuccess = useCallback((data: MeetingType[]) => {
+    setMeetingTypes(data)
+    setLoading(false)
+  }, [])
+  const handleTypesFailure = useCallback(() => {
+    setLoadFailed(true)
+    setLoading(false)
+  }, [])
+  useApiRequest(
+    loadAttempt,
+    typesRequest,
+    handleTypesSuccess,
+    handleTypesFailure,
+  )
 
-  useEffect(() => {
-    if (!selectedType) return
-    let active = true
-    getBookingAvailability({
-      path: { id: selectedType.id },
-      query: { timeZone },
-    })
-      .then(({ data, response }) => {
-        if (!active) return
-        if (response.ok && data) {
-          setAvailability(data)
-          setSelectedDate(
-            data.days.find((day) => day.hasAvailableSlots)?.date ?? null,
-          )
-        } else {
-          setAvailabilityFailed(true)
-        }
-        setAvailabilityLoading(false)
-      })
-      .catch(() => {
-        if (!active) return
-        setAvailabilityFailed(true)
-        setAvailabilityLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [availabilityAttempt, selectedType, timeZone])
+  const availabilityRequest = useMemo(
+    () =>
+      selectedType
+        ? () =>
+            getBookingAvailability({
+              path: { id: selectedType.id },
+              query: { timeZone },
+            })
+        : null,
+    [selectedType, timeZone],
+  )
+  const handleAvailabilitySuccess = useCallback((data: BookingAvailability) => {
+    setAvailability(data)
+    setSelectedDate(data.days.find((day) => day.hasAvailableSlots)?.date ?? null)
+    setAvailabilityLoading(false)
+  }, [])
+  const handleAvailabilityFailure = useCallback(() => {
+    setAvailabilityFailed(true)
+    setAvailabilityLoading(false)
+  }, [])
+  useApiRequest(
+    availabilityAttempt,
+    availabilityRequest,
+    handleAvailabilitySuccess,
+    handleAvailabilityFailure,
+  )
 
   function selectType(meetingType: MeetingType) {
     setConflictMessage(null)
@@ -306,6 +321,14 @@ function BookingPage() {
     }
   }
 
+  const currentStep: BookingStep = bookedMeeting
+    ? 'confirmation'
+    : selectedType && selectedDate && selectedSlot
+      ? 'details'
+      : selectedType
+        ? 'slot'
+        : 'type'
+
   if (bookedMeeting && bookedDate) {
     return (
       <main className="booking-page">
@@ -313,6 +336,7 @@ function BookingPage() {
           Календарь звонков
         </Link>
         <h1>Встреча забронирована</h1>
+        <BookingSteps currentStep={currentStep} />
         <MeetingSummary
           meetingType={bookedMeeting.meetingType}
           date={bookedDate}
@@ -334,6 +358,7 @@ function BookingPage() {
         Календарь звонков
       </Link>
       <h1>Бронирование встречи</h1>
+      <BookingSteps currentStep={currentStep} />
       <p className="booking-time-zone">Часовой пояс: {timeZone}</p>
       {conflictMessage && <p role="alert">{conflictMessage}</p>}
       {!selectedType && loading && <p role="status">Загрузка…</p>}

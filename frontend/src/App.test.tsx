@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   cancelMeeting,
@@ -120,11 +120,10 @@ afterEach(() => {
 })
 
 function renderApp(initialEntry = '/') {
-  return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
-      <App />
-    </MemoryRouter>,
-  )
+  const router = createMemoryRouter([{ path: '*', element: <App /> }], {
+    initialEntries: [initialEntry],
+  })
+  return render(<RouterProvider router={router} />)
 }
 
 function bookingType(id: string, name: string): MeetingType {
@@ -1049,6 +1048,38 @@ describe('Доступность владельца', () => {
     ).toBeInTheDocument()
   })
 
+  it('предупреждает о потере черновика при браузерном back/forward', async () => {
+    const user = userEvent.setup()
+    const confirmMock = vi
+      .spyOn(window, 'confirm')
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true)
+    const router = createMemoryRouter([{ path: '*', element: <App /> }], {
+      initialEntries: ['/owner', '/owner/availability'],
+      initialIndex: 1,
+    })
+    render(<RouterProvider router={router} />)
+    expect(await screen.findByLabelText('Часовой пояс')).toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', { name: 'Добавить интервал — Понедельник' }),
+    )
+
+    await act(() => router.navigate(-1))
+
+    expect(confirmMock).toHaveBeenCalledTimes(1)
+    expect(
+      screen.getByRole('heading', { name: 'Доступность' }),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Понедельник: начало 1')).toBeInTheDocument()
+
+    await act(() => router.navigate(-1))
+
+    expect(confirmMock).toHaveBeenCalledTimes(2)
+    expect(
+      await screen.findByRole('heading', { name: 'Встречи', level: 1 }),
+    ).toBeInTheDocument()
+  })
+
   it('удаляет строку только из черновика', async () => {
     const user = userEvent.setup()
     getAvailabilityMock.mockResolvedValue({
@@ -1274,7 +1305,7 @@ describe('Доступность владельца', () => {
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
     expect(
-      await screen.findByText('Особый день требует хотя бы один интервал'),
+      await screen.findByText('Особое расписание требует хотя бы один интервал'),
     ).toBeInTheDocument()
     expect(replaceAvailabilityMock).not.toHaveBeenCalled()
 
@@ -1294,6 +1325,21 @@ describe('Доступность владельца', () => {
       await screen.findByText('Интервалы не должны пересекаться'),
     ).toBeInTheDocument()
     expect(screen.getByLabelText('Исключение 1: начало 2')).toHaveValue('09:30')
+    expect(replaceAvailabilityMock).not.toHaveBeenCalled()
+  })
+
+  it('не отправляет исключения с повторяющейся датой', async () => {
+    const user = userEvent.setup()
+    renderApp('/owner/availability')
+    expect(await screen.findByText('Исключений нет')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Добавить исключение' }))
+    await user.click(screen.getByRole('button', { name: 'Добавить исключение' }))
+
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    expect(
+      await screen.findByText('Исключение для этой даты уже добавлено'),
+    ).toBeInTheDocument()
     expect(replaceAvailabilityMock).not.toHaveBeenCalled()
   })
 
@@ -1586,7 +1632,18 @@ describe('Гостевое бронирование', () => {
     })
     renderApp('/book')
 
+    expect(
+      screen.getByRole('navigation', { name: 'Шаги бронирования' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Тип встречи', { selector: 'li' })).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
     await user.click(await screen.findByRole('button', { name: /Консультация/ }))
+    expect(screen.getByText('Дата и время', { selector: 'li' })).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
     const slotTime = new Intl.DateTimeFormat('ru-RU', {
       hour: '2-digit',
@@ -1595,6 +1652,10 @@ describe('Гостевое бронирование', () => {
     }).format(new Date(startsAt))
     await user.click(await screen.findByRole('button', { name: slotTime }))
 
+    expect(screen.getByText('Данные гостя', { selector: 'li' })).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
     const summary = screen.getByRole('region', { name: 'Сводка встречи' })
     expect(summary).toHaveTextContent('Консультация')
     expect(summary).toHaveTextContent('15 ноября 2026')
@@ -1613,6 +1674,10 @@ describe('Гостевое бронирование', () => {
       },
     })
     expect(await screen.findByText('Встреча забронирована')).toBeInTheDocument()
+    expect(screen.getByText('Подтверждение', { selector: 'li' })).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
     expect(screen.getByRole('region', { name: 'Сводка встречи' })).toHaveTextContent(
       'Консультация',
     )

@@ -2,13 +2,8 @@ package com.example.backend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -19,25 +14,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
-import org.springframework.test.annotation.DirtiesContext;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
-class BookingApiTests {
-
-  @LocalServerPort private int port;
-  @Autowired private ObjectMapper objectMapper;
-  @Autowired private MutableClock clock;
-
-  private final HttpClient httpClient = HttpClient.newHttpClient();
+class BookingApiTests extends CalendarApiTestBase {
 
   @Test
   void createsScheduledMeetingWithTrimmedGuestAndServerCalculatedEnd() throws Exception {
@@ -145,6 +124,48 @@ class BookingApiTests {
     assertThat(atThreshold.statusCode()).isEqualTo(201);
     assertThat(afterThreshold.statusCode()).isEqualTo(409);
     assertThat(objectMapper.readTree(afterThreshold.body()).get("code").asText())
+        .isEqualTo("SLOT_UNAVAILABLE");
+  }
+
+  @Test
+  void acceptsSlotInsideGuestWindowEvenWhenItIsOutsideUtcWindow() throws Exception {
+    clock.setInstant(Instant.parse("2026-11-13T20:00:00Z"));
+    var meetingType = createMeetingType("Гостевое окно", 60);
+    putAvailability(
+        "{\"MONDAY\":[],\"TUESDAY\":[],\"WEDNESDAY\":[],\"THURSDAY\":[],"
+            + "\"FRIDAY\":[{\"start\":\"09:00\",\"end\":\"10:00\"}],"
+            + "\"SATURDAY\":[],\"SUNDAY\":[]}");
+    var availability =
+        send(
+            "/api/booking/meeting-types/"
+                + meetingType.get("id").asText()
+                + "/availability?timeZone=Pacific/Kiritimati",
+            "GET",
+            null);
+    var lastDay = objectMapper.readTree(availability.body()).get("days").get(13);
+    assertThat(lastDay.get("date").asText()).isEqualTo("2026-11-27");
+    assertThat(lastDay.get("slots").get(0).get("startsAt").asText())
+        .isEqualTo("2026-11-27T09:00:00Z");
+    assertThat(lastDay.get("slots").get(0).get("status").asText()).isEqualTo("AVAILABLE");
+
+    var response = postBooking(bookingRequest(meetingType, "2026-11-27T09:00:00Z", "Гость"));
+
+    assertThat(response.statusCode()).isEqualTo(201);
+  }
+
+  @Test
+  void rejectsSlotOutsideEveryPossibleGuestWindow() throws Exception {
+    clock.setInstant(Instant.parse("2026-11-13T20:00:00Z"));
+    var meetingType = createMeetingType("За пределами гостевых окон", 60);
+    putAvailability(
+        "{\"MONDAY\":[],\"TUESDAY\":[],\"WEDNESDAY\":[],\"THURSDAY\":[],"
+            + "\"FRIDAY\":[{\"start\":\"20:00\",\"end\":\"21:00\"}],"
+            + "\"SATURDAY\":[],\"SUNDAY\":[]}");
+
+    var response = postBooking(bookingRequest(meetingType, "2026-11-27T20:00:00Z", "Гость"));
+
+    assertThat(response.statusCode()).isEqualTo(409);
+    assertThat(objectMapper.readTree(response.body()).get("code").asText())
         .isEqualTo("SLOT_UNAVAILABLE");
   }
 
@@ -446,57 +467,5 @@ class BookingApiTests {
 
   private HttpResponse<String> postBooking(String body) throws Exception {
     return send("/api/booking/bookings", "POST", body);
-  }
-
-  private HttpResponse<String> send(String path, String method, String body) throws Exception {
-    return httpClient.send(
-        HttpRequest.newBuilder()
-            .uri(URI.create("http://localhost:" + port + path))
-            .header("Content-Type", "application/json")
-            .method(
-                method,
-                body == null
-                    ? HttpRequest.BodyPublishers.noBody()
-                    : HttpRequest.BodyPublishers.ofString(body))
-            .build(),
-        HttpResponse.BodyHandlers.ofString());
-  }
-
-  @TestConfiguration(proxyBeanMethods = false)
-  static class FixedClockConfiguration {
-    @Bean
-    @Primary
-    MutableClock mutableClock() {
-      return new MutableClock(Instant.parse("2026-11-13T09:00:00Z"), ZoneOffset.UTC);
-    }
-  }
-
-  static class MutableClock extends Clock {
-    private Instant instant;
-    private final ZoneOffset zone;
-
-    MutableClock(Instant instant, ZoneOffset zone) {
-      this.instant = instant;
-      this.zone = zone;
-    }
-
-    void setInstant(Instant instant) {
-      this.instant = instant;
-    }
-
-    @Override
-    public ZoneOffset getZone() {
-      return zone;
-    }
-
-    @Override
-    public Clock withZone(java.time.ZoneId zone) {
-      return Clock.fixed(instant, zone);
-    }
-
-    @Override
-    public Instant instant() {
-      return instant;
-    }
   }
 }

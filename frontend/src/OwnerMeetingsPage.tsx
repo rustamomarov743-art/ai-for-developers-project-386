@@ -1,28 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { cancelMeeting, listOwnerMeetings } from './api/generated/sdk.gen'
 import type { OwnerMeeting } from './api/generated/types.gen'
 import OwnerCalendar from './OwnerCalendar'
-
-function localDateKey(value: string, timeZone: string) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    timeZone,
-  }).formatToParts(new Date(value))
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((candidate) => candidate.type === type)?.value
-  return `${part('year')}-${part('month')}-${part('day')}`
-}
-
-function formatTime(value: string, timeZone: string) {
-  return new Intl.DateTimeFormat('ru-RU', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-    timeZone,
-  }).format(new Date(value))
-}
+import { formatTime, localDateKey } from './dateTime'
+import { useApiRequest } from './useApiRequest'
 
 function OwnerMeetingsPage() {
   const [meetings, setMeetings] = useState<OwnerMeeting[]>([])
@@ -33,30 +14,16 @@ function OwnerMeetingsPage() {
   const [cancelling, setCancelling] = useState(false)
   const [cancellationMessage, setCancellationMessage] = useState('')
 
-  useEffect(() => {
-    let active = true
-
-    listOwnerMeetings()
-      .then(({ data, response }) => {
-        if (!active) return
-        if (response.ok && data) {
-          setMeetings(data)
-          setLoading(false)
-        } else {
-          setLoadFailed(true)
-          setLoading(false)
-        }
-      })
-      .catch(() => {
-        if (!active) return
-        setLoadFailed(true)
-        setLoading(false)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [loadAttempt])
+  const request = useCallback(() => listOwnerMeetings(), [])
+  const handleSuccess = useCallback((data: OwnerMeeting[]) => {
+    setMeetings(data)
+    setLoading(false)
+  }, [])
+  const handleFailure = useCallback(() => {
+    setLoadFailed(true)
+    setLoading(false)
+  }, [])
+  useApiRequest(loadAttempt, request, handleSuccess, handleFailure)
 
   async function confirmCancellation() {
     if (!meetingToCancel) return

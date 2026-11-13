@@ -4,13 +4,14 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -32,12 +33,55 @@ class SlotCalculator {
       List<BusyInterval> busyIntervals) {
     var today = LocalDate.now(clock.withZone(guestZone));
     var dates = IntStream.range(0, 14).mapToObj(today::plusDays).toList();
+    var windowStart = today.atStartOfDay(guestZone).toInstant();
+    var windowEnd = today.plusDays(14).atStartOfDay(guestZone).toInstant();
+    return calculate(
+        meetingType, availability, guestZone, busyIntervals, dates, windowStart, windowEnd);
+  }
+
+  Optional<BookingSlot> findAvailableSlotInAnyGuestWindow(
+      MeetingType meetingType,
+      Availability availability,
+      Instant startsAt,
+      List<BusyInterval> busyIntervals) {
+    var windowStart =
+        ZoneId.getAvailableZoneIds().stream()
+            .map(ZoneId::of)
+            .map(zone -> LocalDate.now(clock.withZone(zone)).atStartOfDay(zone).toInstant())
+            .min(Comparator.naturalOrder())
+            .orElseThrow();
+    var windowEnd =
+        ZoneId.getAvailableZoneIds().stream()
+            .map(ZoneId::of)
+            .map(zone ->
+                LocalDate.now(clock.withZone(zone)).plusDays(14).atStartOfDay(zone).toInstant())
+            .max(Comparator.naturalOrder())
+            .orElseThrow();
+    var firstDate = windowStart.atZone(ZoneOffset.UTC).toLocalDate();
+    var lastDate = windowEnd.minusNanos(1).atZone(ZoneOffset.UTC).toLocalDate();
+    var dates = firstDate.datesUntil(lastDate.plusDays(1)).toList();
+    return calculate(
+            meetingType, availability, ZoneOffset.UTC, busyIntervals, dates, windowStart, windowEnd)
+        .days()
+        .stream()
+        .flatMap(day -> day.slots().stream())
+        .filter(slot -> slot.startsAt().equals(startsAt))
+        .filter(slot -> slot.status() == BookingSlotStatus.AVAILABLE)
+        .findFirst();
+  }
+
+  private BookingAvailability calculate(
+      MeetingType meetingType,
+      Availability availability,
+      ZoneId guestZone,
+      List<BusyInterval> busyIntervals,
+      List<LocalDate> dates,
+      Instant windowStart,
+      Instant windowEnd) {
     if (availability == null) {
       return new BookingAvailability(emptyDays(dates, busyIntervals, guestZone));
     }
 
-    var windowStart = dates.getFirst().atStartOfDay(guestZone).toInstant();
-    var windowEnd = today.plusDays(14).atStartOfDay(guestZone).toInstant();
     var ownerZone = ZoneId.of(availability.timeZone());
     var firstScheduleDate = windowStart.atZone(ownerZone).toLocalDate().minusDays(1);
     var lastScheduleDate = windowEnd.atZone(ownerZone).toLocalDate().plusDays(1);
@@ -150,8 +194,8 @@ class SlotCalculator {
     intervals.stream()
         .sorted(Comparator.comparing(TimeInterval::start))
         .forEach(interval -> {
-          var start = LocalDateTime.of(date, LocalTime.parse(interval.start()));
-          var end = LocalDateTime.of(date, LocalTime.parse(interval.end()));
+          var start = LocalDateTime.of(date, interval.start());
+          var end = LocalDateTime.of(date, interval.end());
           if (!merged.isEmpty() && !start.isAfter(merged.getLast().endsAt())) {
             var previous = merged.removeLast();
             merged.add(new LocalWorkInterval(previous.startsAt(), end));

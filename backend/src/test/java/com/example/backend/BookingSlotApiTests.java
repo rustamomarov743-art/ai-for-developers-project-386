@@ -2,33 +2,12 @@ package com.example.backend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
-import org.springframework.test.annotation.DirtiesContext;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
-class BookingSlotApiTests {
-
-  @LocalServerPort private int port;
-  @Autowired private ObjectMapper objectMapper;
-  @Autowired private MutableClock clock;
-
-  private final HttpClient httpClient = HttpClient.newHttpClient();
+class BookingSlotApiTests extends CalendarApiTestBase {
 
   @Test
   void returnsEmptyPublicTypesAndFourteenDaysWithoutAvailability() throws Exception {
@@ -261,14 +240,7 @@ class BookingSlotApiTests {
             + ",\"exceptions\":"
             + exceptions
             + "}";
-    var response =
-        httpClient.send(
-            HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + port + "/api/owner/availability"))
-                .header("Content-Type", "application/json")
-                .PUT(HttpRequest.BodyPublishers.ofString(body))
-                .build(),
-            HttpResponse.BodyHandlers.ofString());
+    var response = send("/api/owner/availability", "PUT", body);
     assertThat(response.statusCode()).isEqualTo(200);
   }
 
@@ -279,59 +251,12 @@ class BookingSlotApiTests {
             + "\",\"description\":\"Описание\",\"durationMinutes\":"
             + durationMinutes
             + "}";
-    var response =
-        httpClient.send(
-            HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + port + "/api/owner/meeting-types"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build(),
-            HttpResponse.BodyHandlers.ofString());
+    var response = send("/api/owner/meeting-types", "POST", body);
     assertThat(response.statusCode()).isEqualTo(201);
     return objectMapper.readTree(response.body());
   }
 
   private HttpResponse<String> get(String path) throws Exception {
-    return httpClient.send(
-        HttpRequest.newBuilder().uri(URI.create("http://localhost:" + port + path)).GET().build(),
-        HttpResponse.BodyHandlers.ofString());
-  }
-
-  @TestConfiguration(proxyBeanMethods = false)
-  static class MutableClockConfiguration {
-    @Bean
-    @Primary
-    MutableClock mutableClock() {
-      return new MutableClock(Instant.parse("2026-11-13T09:00:00Z"), ZoneOffset.UTC);
-    }
-  }
-
-  static class MutableClock extends Clock {
-    private Instant instant;
-    private final ZoneOffset zone;
-
-    MutableClock(Instant instant, ZoneOffset zone) {
-      this.instant = instant;
-      this.zone = zone;
-    }
-
-    void setInstant(Instant instant) {
-      this.instant = instant;
-    }
-
-    @Override
-    public ZoneOffset getZone() {
-      return zone;
-    }
-
-    @Override
-    public Clock withZone(java.time.ZoneId zone) {
-      return Clock.fixed(instant, zone);
-    }
-
-    @Override
-    public Instant instant() {
-      return instant;
-    }
+    return send(path, "GET", null);
   }
 }

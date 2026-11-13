@@ -2,34 +2,12 @@ package com.example.backend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
-import org.springframework.test.annotation.DirtiesContext;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
-class OwnerMeetingApiTests {
-
-  @LocalServerPort private int port;
-  @Autowired private ObjectMapper objectMapper;
-  @Autowired private MutableClock clock;
-
-  private final HttpClient httpClient = HttpClient.newHttpClient();
+class OwnerMeetingApiTests extends CalendarApiTestBase {
 
   @Test
   void returnsEmptyUpcomingMeetingList() throws Exception {
@@ -122,57 +100,5 @@ class OwnerMeetingApiTests {
 
   private HttpResponse<String> getOwnerMeetings() throws Exception {
     return send("/api/owner/meetings", "GET", null);
-  }
-
-  private HttpResponse<String> send(String path, String method, String body) throws Exception {
-    return httpClient.send(
-        HttpRequest.newBuilder()
-            .uri(URI.create("http://localhost:" + port + path))
-            .header("Content-Type", "application/json")
-            .method(
-                method,
-                body == null
-                    ? HttpRequest.BodyPublishers.noBody()
-                    : HttpRequest.BodyPublishers.ofString(body))
-            .build(),
-        HttpResponse.BodyHandlers.ofString());
-  }
-
-  @TestConfiguration(proxyBeanMethods = false)
-  static class FixedClockConfiguration {
-    @Bean
-    @Primary
-    MutableClock mutableClock() {
-      return new MutableClock(Instant.parse("2026-11-13T09:00:00Z"), ZoneOffset.UTC);
-    }
-  }
-
-  static class MutableClock extends Clock {
-    private Instant instant;
-    private final ZoneId zone;
-
-    MutableClock(Instant instant, ZoneId zone) {
-      this.instant = instant;
-      this.zone = zone;
-    }
-
-    void setInstant(Instant instant) {
-      this.instant = instant;
-    }
-
-    @Override
-    public ZoneId getZone() {
-      return zone;
-    }
-
-    @Override
-    public Clock withZone(ZoneId zone) {
-      return new MutableClock(instant, zone);
-    }
-
-    @Override
-    public Instant instant() {
-      return instant;
-    }
   }
 }
