@@ -13,6 +13,7 @@ FROM maven:3.9.11-eclipse-temurin-25 AS backend-build
 WORKDIR /app
 
 COPY backend/pom.xml pom.xml
+COPY backend/.mvn .mvn
 RUN mvn -B -ntp dependency:go-offline
 
 COPY backend/src src
